@@ -15,14 +15,6 @@ const handleRun = () => {
       return;
     }
     setStatus("Solving Matrix...");
-    const hasZeroValues = components.some(c => 
-      c.type !== 'ground' && (Number(c.value) === 0 || !c.value)
-    );
-
-    if (hasZeroValues) {
-      setStatus("Check Component Values.");
-      return;
-    }
     
     try {
       if (!components || components.length === 0) {
