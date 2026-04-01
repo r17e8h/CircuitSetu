@@ -201,13 +201,16 @@ export default function CircuitCanvas({
         </svg>
         {components.map(comp => {
           const isActive = selectedComponent === comp.id;
+          const isInvalid = comp.type !== 'ground' && (Number(comp.value) === 0 || !comp.value);
 
           return(
             <div
               key={comp.id}
               className={`absolute flex flex-col items-center justify-center w-[80px] h-[40px] border-2 font-mono text-[#334155] cursor-grab active:cursor-grabbing z-10 transition-colors pointer-events-auto ${
-                isActive 
-                  ? 'bg-[#a8d5ba] border-green-600 translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_#334155]' 
+              isActive 
+                ? 'bg-[#a8d5ba] border-green-600 translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_#334155]' 
+                : isInvalid 
+                  ? 'bg-[#fff5f5] border-red-500 shadow-[4px_4px_0px_#ef4444]' 
                   : 'bg-[#F9F8F4] border-[#334155] shadow-[4px_4px_0px_#334155]'
               }`}
               style={{ left: comp.x, top: comp.y }}
@@ -228,6 +231,11 @@ export default function CircuitCanvas({
                 deleteComponent(comp.id)
               }}
             >
+              {comp.type !== 'ground' && (Number(comp.value) === 0 || !comp.value) && (
+                <div className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-800 rounded-full flex items-center justify-center font-bold text-xs animate-bounce shadow-[2px_2px_0px_rgba(0,0,0,1)] z-30">
+                  !
+                </div>
+              )}
               <div
                 className={`port absolute left-[-7px] top-[13px] w-[10px] h-[10px] border-2 border-[#334155] cursor-crosshair z-20 ${wireStart?.id === comp.id && wireStart?.side === 'left' ? 'bg-[#a8d5ba]' : 'bg-[#fce6b6] hover:bg-[#c8e1e9]'}`}
                 onMouseDown={(e)=>{
