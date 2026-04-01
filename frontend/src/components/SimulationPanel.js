@@ -55,6 +55,14 @@ const handleRun = () => {
 
   const meterCount = (counts.ammeter || 0) + (counts.voltmeter || 0);
   const sourceCount = (counts.battery || 0) + (counts.voltage_source || 0);
+  const zeroValueComponents = components.filter(c => 
+  c.type !== 'ground' && (Number(c.value) === 0 || !c.value)
+);
+
+if (zeroValueComponents.length > 0) {
+  alert("CircuitSetu Engine: Please provide a value for all components. Use the Properties Panel to set resistance/voltage.");
+  return;
+}
 
  return (
     <aside className="w-full h-full flex flex-col font-mono text-slate-800">
