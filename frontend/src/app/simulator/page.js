@@ -26,7 +26,7 @@ export default function SimulatorWorkspace() {
       window.wasmReady = true;
     };
     const script = document.createElement("script");
-    script.src = "/circuit_engine.js";
+    script.src = "/CircuitSetu/circuit_engine.js";
     script.async = true;
     document.body.appendChild(script);
     return () => {
