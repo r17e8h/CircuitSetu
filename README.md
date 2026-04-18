@@ -73,7 +73,7 @@ CircuitSetu features a responsive, native-feeling workspace that works seamlessl
 | **Delete Component** | Right-Click component | Select component ➔ Tap red `×` |
 | **Delete Wire** | Click the wire | Tap the wire |
 
-https://github.com/user-attachments/assets/95789a95-65d7-4bae-91ab-b7c4a9125d50
+<img width="720" height="361" alt="tut" src="https://github.com/user-attachments/assets/8630a646-e194-439b-9841-b7c054aef8de" />
 
 ## Contribution
 
