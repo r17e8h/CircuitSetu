@@ -18,6 +18,14 @@ export default function SimulatorWorkspace() {
   const [hasAttemptedRun, setHasAttemptedRun] = useState(false);
   useEffect(() => {
     setHasMounted(true);
+    const savedComponents = localStorage.getItem('circuit_components');
+    const savedWires = localStorage.getItem('circuit_wires');
+    
+    if (savedComponents) {
+      setComponents(JSON.parse(savedComponents));
+    }
+    if (savedWires) {
+      setWires(JSON.parse(savedWires));
     if (document.querySelector('script[src="/CircuitSetu/circuit_engine.js"]')) {
       return; 
     }
