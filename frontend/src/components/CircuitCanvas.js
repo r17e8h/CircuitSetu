@@ -19,7 +19,8 @@ export default function CircuitCanvas({
   setWires,
   selectedComponent,
   setSelectedComponent,
-  simResults 
+  simResults,
+  hasAttemptedRun
 }) {
 
   const [draggingId, setDraggingId] = useState(null)
@@ -30,6 +31,12 @@ export default function CircuitCanvas({
   const [hoveredMeterId, setHoveredMeterId] = useState(null)
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setZoom(0.7);
+    }
+  }, []);
+  
+  useEffect(() => {
     localStorage.setItem('circuit_components', JSON.stringify(components));
     localStorage.setItem('circuit_wires', JSON.stringify(wires));
   }, [components, wires]);
@@ -38,7 +45,7 @@ export default function CircuitCanvas({
     setWireStart({ id, side })
   }
 
-  function handleMouseDown(id){
+  function handlePointerDown(id){
     setDraggingId(id)
   }
 
@@ -82,20 +89,22 @@ export default function CircuitCanvas({
       style={{
         backgroundImage: 'linear-gradient(#e2e2e2 1px, transparent 1px), linear-gradient(90deg, #e2e2e2 1px, transparent 1px)',
         backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
-        backgroundPosition: `${pan.x}px ${pan.y}px`
+        backgroundPosition: `${pan.x}px ${pan.y}px`,
+        touchAction: 'none'
       }}
       onDrop={drop}
       onDragOver={allowDrop}
-      onMouseDown={(e) => {
+      
+      onPointerDown={(e) => {
         if (e.target === e.currentTarget) {
           setIsPanning(true)
           setSelectedComponent(null)
         }
       }}
       
-      onMouseLeave={() => setIsPanning(false)}
+      onPointerLeave={() => setIsPanning(false)}
 
-      onMouseMove={(e) => {
+      onPointerMove={(e) => {
         if (isPanning) {
           setPan(prev => ({ x: prev.x + e.movementX, y: prev.y + e.movementY }))
           return
@@ -110,7 +119,7 @@ export default function CircuitCanvas({
         )
       }}
 
-      onMouseUp={(e) => {
+      onPointerUp={(e) => {
         if (isPanning) {
           setIsPanning(false)
           return
@@ -201,14 +210,18 @@ export default function CircuitCanvas({
         </svg>
         {components.map(comp => {
           const isActive = selectedComponent === comp.id;
-
+          const isInputType = comp.type === 'resistor' || comp.type === 'battery';
+          const isZero = Number(comp.value) === 0 || !comp.value;
+          const showError = hasAttemptedRun && isInputType && isZero;
           return(
             <div
               key={comp.id}
               className={`absolute flex flex-col items-center justify-center w-[80px] h-[40px] border-2 font-mono text-[#334155] cursor-grab active:cursor-grabbing z-10 transition-colors pointer-events-auto ${
                 isActive 
                   ? 'bg-[#a8d5ba] border-green-600 translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_#334155]' 
-                  : 'bg-[#F9F8F4] border-[#334155] shadow-[4px_4px_0px_#334155]'
+                  : showError 
+                    ? 'bg-[#fff5f5] border-red-500 shadow-[4px_4px_0px_#ef4444]' 
+                    : 'bg-[#F9F8F4] border-[#334155] shadow-[4px_4px_0px_#334155]'
               }`}
               style={{ left: comp.x, top: comp.y }}
               onMouseEnter={() => {
@@ -218,19 +231,36 @@ export default function CircuitCanvas({
               }}
               onMouseLeave={() => setHoveredMeterId(null)}
 
-              onMouseDown={(e)=>{
+              onPointerDown={(e)=>{
                 if(e.target.classList.contains("port")) return
                 setSelectedComponent(comp.id)
-                handleMouseDown(comp.id)
+                handlePointerDown(comp.id)
               }}
               onContextMenu={(e)=>{
                 e.preventDefault()
                 deleteComponent(comp.id)
               }}
             >
+              {isActive && (
+                <button
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  deleteComponent(comp.id);
+                  setSelectedComponent(null);
+                }}
+                className="absolute -top-3 -left-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-800 rounded-full flex items-center justify-center font-bold text-sm z-40 shadow-[2px_2px_0px_#334155] active:translate-y-[1px] active:translate-x-[1px] active:shadow-[1px_1px_0px_#334155] cursor-pointer">
+                  ×
+                  </button>
+                )}
+
+              {showError && (
+                <div className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-800 rounded-full flex items-center justify-center font-bold text-xs animate-bounce shadow-[2px_2px_0px_rgba(0,0,0,1)] z-30">
+                  !
+                </div>
+              )}
               <div
                 className={`port absolute left-[-7px] top-[13px] w-[10px] h-[10px] border-2 border-[#334155] cursor-crosshair z-20 ${wireStart?.id === comp.id && wireStart?.side === 'left' ? 'bg-[#a8d5ba]' : 'bg-[#fce6b6] hover:bg-[#c8e1e9]'}`}
-                onMouseDown={(e)=>{
+                onPointerDown={(e)=>{
                   e.stopPropagation(); startWire(comp.id, "left");
                 }}
               />
@@ -239,6 +269,7 @@ export default function CircuitCanvas({
                 {iconMap[comp.type]}
                 <span className="text-[9px] font-bold uppercase tracking-wider mt-[2px]">{comp.type}</span>
               </div>
+              
               {hoveredMeterId === comp.id && simResults?.status === "success" && (
                 <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-[#334155] border-2 border-[#fce6b6] text-white px-3 py-1 text-xs font-bold font-mono shadow-[2px_2px_0px_rgba(0,0,0,0.5)] pointer-events-none whitespace-nowrap z-50">
                   {comp.type === 'voltmeter' && (
@@ -256,7 +287,7 @@ export default function CircuitCanvas({
 
               <div
                 className={`port absolute right-[-7px] top-[13px] w-[10px] h-[10px] border-2 border-[#334155] cursor-crosshair z-20 ${wireStart?.id === comp.id && wireStart?.side === 'right' ? 'bg-[#a8d5ba]' : 'bg-[#fce6b6] hover:bg-[#c8e1e9]'}`}
-                onMouseDown={(e)=>{
+                onPointerDown={(e)=>{
                   e.stopPropagation(); startWire(comp.id, "right");
                 }}
               />
