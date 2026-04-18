@@ -40,6 +40,41 @@ npm install
 npm run build:wasm
 npm run dev
 ```
+## How to Use CircuitSetu
+
+CircuitSetu features a responsive, native-feeling workspace that works seamlessly across desktop and mobile browsers, powered by a high-performance C++ WASM engine.
+
+### 1. Build Your Circuit
+* **Add Components:** * **Desktop:** Drag and drop components (Batteries, Resistors, Meters, Ground) from the **Toolbox** sidebar onto the grid. 
+  * **Mobile/Tablet:** Tap any component in the Toolbox to drop it onto the canvas. Components will automatically cascade so they don't overlap.
+* **Move & Arrange:** Click/touch and drag any component to reposition it. Use the `+` and `-` buttons in the bottom left to zoom in and out.
+* **Draw Wires:** Click the port (small square) on one component, then click the port on another to connect them with a wire. 
+
+### 2. Configure Values
+* Tap or click any component on the canvas to select it (it will highlight in green).
+* Use the **Properties Panel** to set exact values (e.g., Ohms for resistors, Volts for batteries).
+* *Note:* The engine features strict input validation. If you leave a source or resistor at `0`, it will trigger a bouncing red `!` warning on the canvas, and the engine will refuse to run until corrected.
+
+### 3. Run the WASM Engine
+* Once your circuit is wired (ensure you have a closed loop and a Ground reference!), click **Run Simulation** in the Global Engine panel.
+* The C++ (Eigen) backend will instantly construct and solve the Modified Nodal Analysis (MNA) matrix.
+* Check the **WASM Telemetry** panel for real-time execution speeds and matrix dimensions.
+
+### 4. Read the Results
+* Once solved, hover over (or tap) your Voltmeters and Ammeters on the canvas.
+* A tooltip will appear displaying the precise voltage drops and current flows calculated by the engine.
+
+### Quick Controls
+
+| Action | Desktop | Mobile / Touch |
+| :--- | :--- | :--- |
+| **Pan Canvas** | Click & Drag empty grid | Touch & Drag empty grid |
+| **Select Component** | Left-Click component | Tap component |
+| **Delete Component** | Right-Click component | Select component ➔ Tap red `×` |
+| **Delete Wire** | Click the wire | Tap the wire |
+
+<video src="asset/tut.mp4" controls width="100%"></video>
+
 ## Contribution
 
 Contributions are welcome! Please feel free to submit a Pull Request.

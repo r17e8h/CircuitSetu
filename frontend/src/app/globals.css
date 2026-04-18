@@ -1,179 +1,183 @@
 @import "tailwindcss";
 
-body{
-margin:0;
-font-family:Arial;
-background:#f5f6fa;
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden; 
+  font-family: Arial, sans-serif;
+  background: #f5f6fa;
 }
 
-.header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-padding:12px 20px;
-background:#1f2937;
-color:white;
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #1f2937;
+  color: white;
+  height: 60px;
+  box-sizing: border-box;
 }
 
-.header nav button{
-margin-left:10px;
-padding:6px 12px;
-border:none;
-background:#374151;
-color:white;
-cursor:pointer;
+.header nav button {
+  margin-left: 10px;
+  padding: 6px 12px;
+  border: none;
+  background: #374151;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
 }
 
-.container{
-display:flex;
-height:90vh;
+.container {
+  display: flex;
+  height: calc(100vh - 60px);
+  width: 100vw;
+  flex-direction: row;
 }
 
-/* sidebar */
-
-.sidebar{
-width:220px;
-background:white;
-border-right:1px solid #ddd;
-padding:15px;
+.sidebar {
+  width: 220px;
+  background: white;
+  border-right: 1px solid #ddd;
+  padding: 15px;
+  flex-shrink: 0;
+  overflow-y: auto;
 }
 
-.component{
-padding:10px;
-margin:8px 0;
-background:#ecf0f1;
-border-radius:6px;
-cursor:grab;
+.component {
+  padding: 10px;
+  margin: 8px 0;
+  background: #ecf0f1;
+  border-radius: 6px;
+  cursor: grab;
+  border: 1px solid #dcdde1;
+  transition: transform 0.2s;
 }
 
-/* workspace */
-
-.workspace{
-flex:1;
-position:relative;
-background:white;
-
-background-image:
-linear-gradient(#e5e7eb 1px, transparent 1px),
-linear-gradient(90deg,#e5e7eb 1px, transparent 1px);
-
-background-size:25px 25px;
-}
-
-.title{
-padding:10px;
-border-bottom:1px solid #ddd;
-margin:0;
-}
-
-.element{
-position:absolute;
-width:80px;
-height:40px;
-display:flex;
-align-items:center;
-justify-content:center;
-background:#f1f3f5;
-border-radius:8px;
-border:1px solid #ccc;
-}
-
-.element:active {
+.component:active {
   cursor: grabbing;
 }
 
-.port{
-width:14px;
-height:14px;
-background:#333;
-border-radius:50%;
-position:absolute;
-top:50%;
-transform:translateY(-50%);
-cursor:pointer;
-z-index:2;
+.workspace {
+  flex: 1;
+  position: relative;
+  background: white;
+  overflow: hidden;
+  touch-action: none; 
 }
 
-.port.left{
-left:-8px;
+.canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: white;
+  background-image:
+    linear-gradient(#e5e7eb 1px, transparent 1px),
+    linear-gradient(90deg, #e5e7eb 1px, transparent 1px);
+  background-size: 25px 25px;
 }
 
-.port.right{
-right:-8px;
+.element {
+  position: absolute;
+  padding: 10px 14px;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: xx-large;
+  z-index: 10;
 }
 
-.port:hover{
-background:#0070f3;
-transform:translateY(-50%) scale(1.2);
-}
-.port:hover::after{
-content:"";
-position:absolute;
-width:30px;
-height:30px;
-border:2px dashed #0070f3;
-border-radius:50%;
-top:-8px;
-left:-8px;
+.port {
+  width: 14px;
+  height: 14px;
+  background: #333;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  z-index: 20;
 }
 
-/* simulation */
+.port.left { left: -8px; }
+.port.right { right: -8px; }
 
-.simulation{
-align-self: flex-end;
-width:240px;
-background:white;
-border-left:5px solid #000000;
-padding:15px;
+.simulation {
+  width: 240px;
+  background: white;
+  border-left: 5px solid #000000;
+  padding: 15px;
+  flex-shrink: 0;
+  overflow-y: auto;
 }
 
-.simulation button{
-width:100%;
-padding:10px;
-background:#10b981;
-border:none;
-color:white;
-font-size:16px;
-cursor:pointer;
+.simulation button {
+  width: 100%;
+  padding: 12px;
+  background: #10b981;
+  border: none;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
 }
 
-.stats{
-margin-top:15px;
+.wires {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
 }
 
-.canvas{
- width: 1000px;
-position:relative;
-background:white;
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    height: 100px;
+    display: flex;
+    flex-direction: row;
+    padding: 10px;
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+    overflow-x: auto;
+    gap: 10px;
+  }
 
-background-image:
-linear-gradient(#e5e7eb 1px, transparent 1px),
-linear-gradient(90deg,#e5e7eb 1px, transparent 1px);
+  .component {
+    min-width: 120px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
 
-background-size:25px 25px;
+  .simulation {
+    width: 100%;
+    height: auto;
+    border-left: none;
+    border-top: 5px solid #000;
+    padding: 10px;
+  }
 
-overflow:hidden;
+  .workspace {
+    flex: 1;
+  }
 
-}
+  .header h1 {
+    font-size: 18px;
+  }
 
-.element{
-
-position: absolute;
-padding:10px 14px;
-background: none;
-border-radius:6px;
-cursor:pointer;
-user-select:none;
-font-size: xx-large;
-
-
-}
-
-.wires{
-
-position:absolute;
-width:100%;
-height:100%;
-pointer-events:none;
-
+  .header nav button {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
 }
