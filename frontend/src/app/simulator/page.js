@@ -26,6 +26,7 @@ export default function SimulatorWorkspace() {
     }
     if (savedWires) {
       setWires(JSON.parse(savedWires));
+    }
     if (document.querySelector('script[src="/CircuitSetu/circuit_engine.js"]')) {
       return; 
     }
