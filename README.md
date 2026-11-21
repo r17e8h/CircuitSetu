@@ -28,18 +28,24 @@ Students can use CircuitSetu to solve and verify:
 - [Node.js](https://nodejs.org/en) (v18 or higher)
 - [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (for compiling the C++ engine)
 
+**Run Frontend (Uses pre-compiled WASM in `frontend/public/`)**
 
-```
-git clone https://github.com/r17e8h/CircuitSetu.git
-cd CircuitSetu
+```bash
+git clone https://github.com/r17e8h/CircuitSetu
+cd CircuitSetu/frontend
 npm install
+npm run dev
 ```
-**Build the Engine and run**
+Open `http://localhost:3000/CircuitSetu` in your browser.
 
-```
+**Build the Engine and run** *(Requires [Emscripten (`emcc`)](https://emscripten.org/) and `eigen3`)*
+
+```bash
+cd frontend
 npm run build:wasm
 npm run dev
 ```
+
 ## How to Use CircuitSetu
 
 CircuitSetu features a responsive, native-feeling workspace that works seamlessly across desktop and mobile browsers, powered by a high-performance C++ WASM engine.
