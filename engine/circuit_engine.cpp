@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 using json = nlohmann::json;
 using namespace Eigen;
@@ -132,5 +133,47 @@ const char *run_circuit_simulation(const char *frontend_payload) {
         std::string("{\"status\":\"error\",\"message\":\"") + e.what() + "\"}";
   }
   return result_str.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *run_digital_simulation(const char *frontend_payload) {
+  static std::string digital_result_str;
+  try {
+    auto input = json::parse(frontend_payload);
+    std::unordered_map<std::string, int> net_state;
+
+    if (input.contains("nets")) {
+      for (const auto &net : input["nets"]) {
+        net_state[net.get<std::string>()] = -1;
+      }
+    }
+
+    if (input.contains("components")) {
+      for (const auto &comp : input["components"]) {
+        if (comp.value("type", "") == "SWITCH") {
+          std::string out_net = comp.value("out_net", "");
+          if (!out_net.empty()) {
+            net_state[out_net] = comp.value("state", 0);
+          }
+        }
+      }
+    }
+
+    bool changed = true;
+    int ticks = 0;
+    while (changed && ticks < 100) {
+      changed = false;
+      ticks++;
+    }
+
+    json response;
+    response["status"] = "success";
+    response["nets"] = net_state;
+    digital_result_str = response.dump();
+  } catch (const std::exception &e) {
+    digital_result_str =
+        std::string("{\"status\":\"error\",\"message\":\"") + e.what() + "\"}";
+  }
+  return digital_result_str.c_str();
 }
 }
