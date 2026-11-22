@@ -1,13 +1,54 @@
-"use client"
-import { useState } from "react"
-import { generateSimulationPayload } from "../lib/netlistGenerator"
+"use client";
 
-export default function SimulationPanel({ components, wires, setSimResults, setHasAttemptedRun }) {
-  const [status, setStatus] = useState("Idle")
+import { useState } from "react";
+import { generateSimulationPayload, simulateDigitalCircuit } from "../lib/netlistGenerator";
+import { isDigitalType } from "../lib/digitalSchema";
+
+export default function SimulationPanel({ 
+  components, 
+  wires, 
+  setSimResults, 
+  setHasAttemptedRun,
+  simMode = "digital",
+  setSimMode
+}) {
+  const [status, setStatus] = useState("Idle");
   const [solveTime, setSolveTime] = useState("--");
 
   const handleRun = () => {
     if (setHasAttemptedRun) setHasAttemptedRun(true);
+
+    if (!components || components.length === 0) {
+      setStatus("Canvas is empty");
+      return;
+    }
+
+    if (simMode === "digital") {
+      // DIGITAL LOGIC SIMULATION
+      try {
+        setStatus("Propagating Logic...");
+        const startTime = performance.now();
+        const digitalResult = simulateDigitalCircuit(components, wires);
+        const endTime = performance.now();
+
+        setSimResults(digitalResult);
+        setSolveTime((endTime - startTime).toFixed(2));
+
+        const hasConflict = Object.values(digitalResult.nets || {}).includes(-2);
+        if (hasConflict) {
+          setStatus("Conflict / Short");
+        } else {
+          setStatus("Solved Natively");
+        }
+      } catch (e) {
+        console.error("Digital simulation error:", e);
+        setStatus("Simulation Error");
+        setSolveTime("--");
+      }
+      return;
+    }
+
+    // ANALOG SIMULATION
     const isReady = typeof window !== "undefined" && (window.wasmReady || (window.Module && window.Module.cwrap));
 
     if (!isReady) {
@@ -15,8 +56,11 @@ export default function SimulationPanel({ components, wires, setSimResults, setH
       console.warn("WASM not ready yet. Ensure circuit_engine.js and .wasm are in /public");
       return;
     }
-    const hasZeroValues = components.some(c => 
-      (c.type === 'resistor' || c.type === 'battery') && (Number(c.value) === 0 || !c.value)
+
+    const hasZeroValues = components.some(
+      (c) =>
+        (c.type === "resistor" || c.type === "battery") &&
+        (Number(c.value) === 0 || !c.value)
     );
 
     if (hasZeroValues) {
@@ -24,24 +68,19 @@ export default function SimulationPanel({ components, wires, setSimResults, setH
       setSolveTime("--");
       return;
     }
+
     setStatus("Solving Matrix...");
-    
+
     try {
-      if (!components || components.length === 0) {
-        setStatus("Canvas is empty");
-        return;
-      }
       const rawPayload = generateSimulationPayload(components, wires);
-      const safeStringPayload = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(rawPayload);
-      console.log("Sending to C++:", safeStringPayload);
-      const runSimulation = window.Module.cwrap('run_circuit_simulation', 'string', ['string']);
+      const safeStringPayload = typeof rawPayload === "string" ? rawPayload : JSON.stringify(rawPayload);
+      const runSimulation = window.Module.cwrap("run_circuit_simulation", "string", ["string"]);
       const startTime = performance.now();
       const resultString = runSimulation(safeStringPayload);
       const endTime = performance.now();
       const result = JSON.parse(resultString);
       setSimResults(result);
-      console.log("C++ Result:", result);
-      
+
       if (result.status === "success") {
         setStatus("Solved Natively");
         setSolveTime((endTime - startTime).toFixed(2));
@@ -49,79 +88,145 @@ export default function SimulationPanel({ components, wires, setSimResults, setH
         setStatus("Matrix Error");
         setSolveTime("--");
       }
-
     } catch (e) {
       console.error("Simulation failed:", e);
       setStatus("C++ Error");
       setSolveTime("--");
     }
-  }
-  const nodeCount = wires ? wires.length + 1 : 0;
-  const counts = components?.reduce((acc, comp) => {
-    acc[comp.type] = (acc[comp.type] || 0) + 1;
-    return acc;
-  }, {}) || {};
+  };
 
-  const meterCount = (counts.ammeter || 0) + (counts.voltmeter || 0);
+  // Bill of Materials breakdown
+  const counts =
+    components?.reduce((acc, comp) => {
+      acc[comp.type] = (acc[comp.type] || 0) + 1;
+      return acc;
+    }, {}) || {};
+
+  const switchCount = counts.SWITCH || 0;
+  const ledCount = counts.LED || 0;
+  const gateCount =
+    (counts.AND || 0) +
+    (counts.OR || 0) +
+    (counts.NOT || 0) +
+    (counts.NAND || 0) +
+    (counts.NOR || 0) +
+    (counts.XOR || 0) +
+    (counts.XNOR || 0);
+
+  const resistorCount = counts.resistor || 0;
   const sourceCount = (counts.battery || 0) + (counts.voltage_source || 0);
+  const meterCount = (counts.ammeter || 0) + (counts.voltmeter || 0);
+  const wireCount = wires?.length || 0;
+  const nodeCount = wires ? wires.length + 1 : 0;
+
   return (
     <aside className="w-full h-full flex flex-col font-mono text-slate-800">
-      <div className="p-4 border-b-2 border-[#334155] bg-[#a8d5ba] shadow-[0_4px_0px_rgba(51,65,85,0.1)] z-10 shrink-0">
-        <h2 className="font-bold uppercase tracking-widest text-sm text-center">Global Engine</h2>
+      <div className="p-3 border-b-2 border-[#334155] bg-[#a8d5ba] shadow-[0_4px_0px_rgba(51,65,85,0.1)] z-10 shrink-0 flex items-center justify-between">
+        <h2 className="font-bold uppercase tracking-widest text-xs md:text-sm">
+          Simulation Engine
+        </h2>
+        <span className="text-[10px] font-bold px-1.5 py-0.5 border border-[#334155] bg-[#F9F8F4] uppercase">
+          {simMode === "digital" ? "DLCD Logic" : "MNA DC"}
+        </span>
       </div>
-      <div className="mt-auto p-5 bg-[#F9F8F4] border-t-2 border-[#334155] flex-1 flex flex-col justify-end">
-        <div className="mb-auto mt-2 hidden md:block">
+
+      <div className="mt-auto p-4 bg-[#F9F8F4] border-t-2 border-[#334155] flex-1 flex flex-col justify-end">
+        {/* Bill of Materials */}
+        <div className="mb-auto mt-1 hidden md:block">
           <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-2 tracking-widest border-b-2 border-slate-300 pb-1">
-            Bill of Materials
+            Bill of Materials ({simMode.toUpperCase()})
           </h3>
-          <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
-            <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-              <span className="text-slate-500">RESISTORS</span>
-              <span className="text-[#528b6a] text-xs">{counts.resistor || 0}</span>
+          {simMode === "digital" ? (
+            <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">SWITCHES</span>
+                <span className="text-[#528b6a] text-xs">{switchCount}</span>
+              </div>
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">GATES</span>
+                <span className="text-[#528b6a] text-xs">{gateCount}</span>
+              </div>
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">LEDS</span>
+                <span className="text-[#528b6a] text-xs">{ledCount}</span>
+              </div>
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">WIRES</span>
+                <span className="text-[#528b6a] text-xs">{wireCount}</span>
+              </div>
             </div>
-            <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-              <span className="text-slate-500">SOURCES</span>
-              <span className="text-[#528b6a] text-xs">{sourceCount}</span>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">RESISTORS</span>
+                <span className="text-[#528b6a] text-xs">{resistorCount}</span>
+              </div>
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">SOURCES</span>
+                <span className="text-[#528b6a] text-xs">{sourceCount}</span>
+              </div>
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">METERS</span>
+                <span className="text-[#528b6a] text-xs">{meterCount}</span>
+              </div>
+              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
+                <span className="text-slate-500">WIRES</span>
+                <span className="text-[#528b6a] text-xs">{wireCount}</span>
+              </div>
             </div>
-            <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-              <span className="text-slate-500">METERS</span>
-              <span className="text-[#528b6a] text-xs">{meterCount}</span>
-            </div>
-            <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-              <span className="text-slate-500">WIRES</span>
-              <span className="text-[#528b6a] text-xs">{wires?.length || 0}</span>
-            </div>
-          </div>
+          )}
         </div>
+
+        {/* Run Simulation Button */}
         <button
           onClick={handleRun}
-          className="w-full py-3 mt-4 md:mt-6 bg-[#a8d5ba] border-2 border-[#334155] font-bold tracking-widest uppercase shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] active:bg-[#64a982] transition-all mb-4 md:mb-6 flex items-center justify-center gap-2"
+          className="w-full py-2.5 mt-3 md:mt-4 bg-[#a8d5ba] border-2 border-[#334155] font-bold tracking-widest uppercase shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] active:bg-[#64a982] transition-all mb-3 md:mb-4 flex items-center justify-center gap-2 cursor-pointer text-xs md:text-sm"
         >
-          <span className={`w-2 h-2 rounded-full border border-[#334155] ${status === "Idle" || status.includes("Error") ? "bg-red-500" : "bg-green-500 animate-pulse"}`}></span>
+          <span
+            className={`w-2.5 h-2.5 rounded-full border border-[#334155] ${
+              status === "Idle" || status.includes("Error") || status.includes("Conflict")
+                ? "bg-red-500"
+                : "bg-green-500 animate-pulse"
+            }`}
+          />
           Run Simulation
         </button>
-        <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-2 tracking-widest border-b-2 border-slate-300 pb-1">
-          WASM Telemetry
-        </h3>  
-        <div className="space-y-2 text-xs font-bold bg-[#e2e8f0] border-2 border-[#334155] p-3 shadow-inner text-slate-600 mb-2">
+
+        {/* Telemetry Panel */}
+        <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-1.5 tracking-widest border-b-2 border-slate-300 pb-1">
+          Engine Telemetry
+        </h3>
+        <div className="space-y-1.5 text-xs font-bold bg-[#e2e8f0] border-2 border-[#334155] p-2.5 shadow-inner text-slate-600">
           <div className="flex justify-between border-b border-dashed border-slate-400 pb-1">
-            <span>Engine Status:</span>
-            <span className={status.includes("Error") || status.includes("⚠️") ? "text-red-500" : "text-[#528b6a]"}>{status}</span>
+            <span>Status:</span>
+            <span
+              className={
+                status.includes("Error") || status.includes("Conflict")
+                  ? "text-red-500 font-black"
+                  : "text-[#528b6a]"
+              }
+            >
+              {status}
+            </span>
           </div>
           <div className="flex justify-between border-b border-dashed border-slate-400 pb-1 hidden md:flex">
             <span>Execution Time:</span>
             <span className="text-[#528b6a]">{solveTime} ms</span>
           </div>
           <div className="flex justify-between border-b border-dashed border-slate-400 pb-1 hidden md:flex">
-            <span>MNA Matrix:</span>
-            <span className="text-slate-800">{nodeCount}x{nodeCount}</span>
+            <span>Circuit Size:</span>
+            <span className="text-slate-800">
+              {simMode === "digital" ? `${gateCount + switchCount} digital parts` : `${nodeCount}x${nodeCount} MNA`}
+            </span>
           </div>
-          <div className="flex justify-between pt-1">
+          <div className="flex justify-between pt-0.5">
             <span>Backend:</span>
-            <span className="bg-slate-800 text-white px-1 rounded-sm text-[10px]">C++ / EIGEN</span>
+            <span className="bg-slate-800 text-white px-1 rounded-sm text-[9px]">
+              {simMode === "digital" ? "DLCD / C++ WASM" : "C++ / EIGEN"}
+            </span>
           </div>
         </div>
       </div>
     </aside>
-  )
+  );
 }
