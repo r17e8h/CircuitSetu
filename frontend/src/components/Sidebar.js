@@ -10,7 +10,7 @@ const components = [
   { type: "voltmeter", label: "Voltmeter", icon: <TbCircuitVoltmeter className="text-xl" /> }
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onAddComponent }) {
 
   function dragStart(e, type) {
     e.dataTransfer.setData("component", type);
@@ -30,19 +30,23 @@ export default function Sidebar() {
             key={c.type}
             draggable
             onDragStart={(e) => dragStart(e, c.type)}
-            className="flex items-center gap-3 p-3 bg-[#F9F8F4] border-2 border-[#334155] shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] cursor-grab active:cursor-grabbing transition-all select-none"
+            onClick={() => onAddComponent && onAddComponent(c.type)}
+            className="flex items-center gap-3 p-3 bg-[#F9F8F4] border-2 border-[#334155] shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] cursor-pointer active:scale-95 transition-all select-none"
           >
-            <div className="w-10 h-10 flex items-center justify-center bg-[#fce6b6] border-2 border-[#334155] text-[#334155] shrink-0">
+            <div className="w-10 h-10 flex items-center justify-center bg-[#fce6b6] border-2 border-[#334155] text-[#334155] shrink-0 pointer-events-none">
               {c.icon}
             </div>
-            <span className="font-bold text-sm uppercase tracking-wide truncate">
+            <span className="font-bold text-sm uppercase tracking-wide truncate pointer-events-none">
               {c.label}
             </span>
           </div>
         ))}
       </div>
-      <div className="p-4 border-t-2 border-[#334155] text-xs font-bold text-slate-600 bg-[#F9F8F4] text-center uppercase tracking-widest shrink-0">
+      <div className="p-4 border-t-2 border-[#334155] text-xs font-bold text-slate-600 bg-[#F9F8F4] text-center uppercase tracking-widest shrink-0 hidden md:block">
         [ Drag to Graph ]
+      </div>
+      <div className="p-4 border-t-2 border-[#334155] text-xs font-bold text-slate-600 bg-[#F9F8F4] text-center uppercase tracking-widest shrink-0 md:hidden">
+        [ Tap to Add ]
       </div>
 
     </aside>
