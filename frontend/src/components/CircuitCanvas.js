@@ -35,7 +35,8 @@ export default function CircuitCanvas({
   setSimResults,
   hasAttemptedRun,
   simMode = "digital",
-  onTriggerSim
+  onTriggerSim,
+  isDark = false
 }) {
   const [draggingId, setDraggingId] = useState(null);
   const [wireStart, setWireStart] = useState(null);
@@ -136,12 +137,13 @@ export default function CircuitCanvas({
 
   return (
     <div
-      className={`relative w-full h-full overflow-hidden select-none bg-[#F9F8F4] ${
+      className={`relative w-full h-full overflow-hidden select-none transition-colors duration-200 ${
         isPanning ? "cursor-grabbing" : "cursor-default"
-      }`}
+      } ${isDark ? "bg-[#0d131f]" : "bg-[#F9F8F4]"}`}
       style={{
-        backgroundImage:
-          "linear-gradient(#e2e2e2 1px, transparent 1px), linear-gradient(90deg, #e2e2e2 1px, transparent 1px)",
+        backgroundImage: isDark
+          ? "linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)"
+          : "linear-gradient(#e2e2e2 1px, transparent 1px), linear-gradient(90deg, #e2e2e2 1px, transparent 1px)",
         backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
         backgroundPosition: `${pan.x}px ${pan.y}px`,
         touchAction: "none"
@@ -185,7 +187,6 @@ export default function CircuitCanvas({
           return;
         }
 
-        const wasDraggingComp = draggingId !== null;
         setDraggingId(null);
 
         // Check if completing a wire connection
@@ -236,14 +237,22 @@ export default function CircuitCanvas({
       <div className="absolute bottom-6 left-6 flex flex-col z-50">
         <button
           onClick={() => setZoom((z) => Math.min(z + 0.2, 2))}
-          className="w-8 h-8 bg-[#fce6b6] border-2 border-[#334155] border-b-0 shadow-[4px_0_0px_#334155] hover:bg-[#a8d5ba] active:bg-[#64a982] font-bold flex items-center justify-center transition-colors pb-[2px] cursor-pointer"
+          className={`w-8 h-8 border-2 border-b-0 font-bold flex items-center justify-center transition-colors pb-[2px] cursor-pointer ${
+            isDark
+              ? "bg-[#1e293b] text-slate-100 border-[#475569] shadow-[4px_0_0px_#000000] hover:bg-[#334155] active:bg-[#065f46]"
+              : "bg-[#fce6b6] text-slate-800 border-[#334155] shadow-[4px_0_0px_#334155] hover:bg-[#a8d5ba] active:bg-[#64a982]"
+          }`}
           title="Zoom In"
         >
           ＋
         </button>
         <button
           onClick={() => setZoom((z) => Math.max(z - 0.2, 0.4))}
-          className="w-8 h-8 bg-[#fce6b6] border-2 border-[#334155] shadow-[4px_4px_0px_#334155] hover:bg-[#a8d5ba] active:bg-[#64a982] active:translate-y-[2px] active:shadow-[4px_2px_0px_#334155] font-bold text-xl flex items-center justify-center transition-colors pb-[2px] cursor-pointer"
+          className={`w-8 h-8 border-2 font-bold text-xl flex items-center justify-center transition-colors pb-[2px] cursor-pointer ${
+            isDark
+              ? "bg-[#1e293b] text-slate-100 border-[#475569] shadow-[4px_4px_0px_#000000] hover:bg-[#334155] active:bg-[#065f46]"
+              : "bg-[#fce6b6] text-slate-800 border-[#334155] shadow-[4px_4px_0px_#334155] hover:bg-[#a8d5ba] active:bg-[#64a982]"
+          }`}
           title="Zoom Out"
         >
           －
@@ -267,13 +276,14 @@ export default function CircuitCanvas({
             const toPos = getPortPosition(to, wire.toPort || wire.toSide);
 
             // Dynamic live state coloring using simResults.nets[wire.netId]
+            // In Dark Mode:
             // 1 (HIGH): Bright Green (#22c55e)
-            // 0 (LOW): Dark Slate (#334155)
-            // -1 (Floating / Unconnected): Dashed Amber (#f59e0b)
-            // -2 (Short Circuit / Conflict): Bright Red (#ef4444)
+            // 0 (LOW): Silver Slate (#94a3b8) - clearly visible against dark canvas!
+            // -1 (Floating / Unconnected): Dashed Amber (#fbbf24)
+            // -2 (Short Circuit / Conflict): Vivid Red (#f87171)
             const netState = simResults?.nets ? simResults.nets[wire.netId] : undefined;
 
-            let strokeColor = "#334155";
+            let strokeColor = isDark ? "#94a3b8" : "#334155";
             let strokeDash = undefined;
             let strokeWidth = 3;
 
@@ -282,14 +292,14 @@ export default function CircuitCanvas({
                 strokeColor = "#22c55e"; // HIGH: Bright Green
                 strokeWidth = 3.5;
               } else if (netState === 0) {
-                strokeColor = "#334155"; // LOW: Dark Slate
+                strokeColor = isDark ? "#94a3b8" : "#334155"; // LOW
                 strokeWidth = 3;
               } else if (netState === -1) {
-                strokeColor = "#f59e0b"; // Floating: Dashed Amber
+                strokeColor = isDark ? "#fbbf24" : "#f59e0b"; // Floating
                 strokeDash = "6,4";
                 strokeWidth = 2.5;
               } else if (netState === -2) {
-                strokeColor = "#ef4444"; // Conflict: Bright Red
+                strokeColor = isDark ? "#f87171" : "#ef4444"; // Conflict
                 strokeWidth = 4;
               }
             }
@@ -360,12 +370,18 @@ export default function CircuitCanvas({
           return (
             <div
               key={comp.id}
-              className={`absolute flex flex-col items-center justify-center border-2 font-mono text-[#334155] cursor-grab active:cursor-grabbing z-10 transition-all pointer-events-auto select-none ${
+              className={`absolute flex flex-col items-center justify-center border-2 font-mono cursor-grab active:cursor-grabbing z-10 transition-all pointer-events-auto select-none ${
                 isActive
-                  ? "bg-[#a8d5ba] border-green-600 translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_#334155]"
+                  ? isDark
+                    ? "bg-[#064e3b] border-[#22c55e] text-emerald-100 translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_#000000]"
+                    : "bg-[#a8d5ba] border-green-600 text-slate-900 translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_#334155]"
                   : showError
-                    ? "bg-[#fff5f5] border-red-500 shadow-[4px_4px_0px_#ef4444]"
-                    : "bg-[#F9F8F4] border-[#334155] shadow-[4px_4px_0px_#334155]"
+                    ? isDark
+                      ? "bg-[#450a0a] border-red-500 shadow-[4px_4px_0px_#ef4444] text-red-200"
+                      : "bg-[#fff5f5] border-red-500 shadow-[4px_4px_0px_#ef4444] text-[#334155]"
+                    : isDark
+                      ? "bg-[#1e293b] border-[#475569] shadow-[4px_4px_0px_#000000] text-slate-100"
+                      : "bg-[#F9F8F4] border-[#334155] shadow-[4px_4px_0px_#334155] text-[#334155]"
               }`}
               style={{
                 left: comp.x,
@@ -411,7 +427,7 @@ export default function CircuitCanvas({
                     e.stopPropagation();
                     deleteComponent(comp.id);
                   }}
-                  className="absolute -top-3 -left-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-800 rounded-full flex items-center justify-center font-bold text-sm z-40 shadow-[2px_2px_0px_#334155] active:translate-y-[1px] active:translate-x-[1px] active:shadow-[1px_1px_0px_#334155] cursor-pointer"
+                  className="absolute -top-3 -left-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-900 rounded-full flex items-center justify-center font-bold text-sm z-40 shadow-[2px_2px_0px_#000000] active:translate-y-[1px] active:translate-x-[1px] cursor-pointer"
                   title="Delete component"
                 >
                   ×
@@ -420,7 +436,7 @@ export default function CircuitCanvas({
 
               {/* Zero-value warning badge */}
               {showError && (
-                <div className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-800 rounded-full flex items-center justify-center font-bold text-xs animate-bounce shadow-[2px_2px_0px_rgba(0,0,0,1)] z-30">
+                <div className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 text-white border-2 border-slate-900 rounded-full flex items-center justify-center font-bold text-xs animate-bounce shadow-[2px_2px_0px_rgba(0,0,0,1)] z-30">
                   !
                 </div>
               )}
@@ -436,8 +452,14 @@ export default function CircuitCanvas({
                     key={port.id}
                     data-port-id={port.id}
                     title={`${port.label || port.id} (${port.type})`}
-                    className={`port absolute w-[10px] h-[10px] border-2 border-[#334155] cursor-crosshair z-20 transition-all ${
-                      isWireStart ? "bg-[#a8d5ba] scale-125" : "bg-[#fce6b6] hover:bg-[#c8e1e9]"
+                    className={`port absolute w-[10px] h-[10px] border-2 cursor-crosshair z-20 transition-all ${
+                      isDark ? "border-[#000000]" : "border-[#334155]"
+                    } ${
+                      isWireStart
+                        ? "bg-[#22c55e] scale-125"
+                        : isDark
+                          ? "bg-[#fce6b6] hover:bg-[#38bdf8]"
+                          : "bg-[#fce6b6] hover:bg-[#c8e1e9]"
                     }`}
                     style={{
                       left: `${port.offsetX - 5}px`,
@@ -461,19 +483,33 @@ export default function CircuitCanvas({
                 >
                   <div className="flex items-center gap-1.5 pointer-events-none">
                     <span
-                      className={`text-xs font-black px-2 py-0.5 border-2 border-[#334155] shadow-[2px_2px_0px_#334155] transition-all ${
+                      className={`text-xs font-black px-2 py-0.5 border-2 transition-all ${
+                        isDark ? "border-[#000000]" : "border-[#334155]"
+                      } ${
                         comp.state === 1
-                          ? "bg-[#22c55e] text-slate-900 shadow-[0_0_8px_#22c55e]"
-                          : "bg-slate-200 text-slate-600"
+                          ? "bg-[#22c55e] text-slate-950 shadow-[0_0_10px_#22c55e]"
+                          : isDark
+                            ? "bg-[#334155] text-slate-300"
+                            : "bg-slate-200 text-slate-600"
                       }`}
                     >
                       {comp.state === 1 ? "1" : "0"}
                     </span>
-                    <span className="text-[10px] font-extrabold uppercase tracking-tight">
+                    <span
+                      className={`text-[10px] font-extrabold uppercase tracking-tight ${
+                        comp.state === 1
+                          ? isDark ? "text-emerald-400" : "text-emerald-700"
+                          : isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
                       {comp.state === 1 ? "ON" : "OFF"}
                     </span>
                   </div>
-                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 pointer-events-none">
+                  <span
+                    className={`text-[8px] font-bold uppercase tracking-widest mt-0.5 pointer-events-none ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
                     SWITCH
                   </span>
                 </div>
@@ -483,13 +519,15 @@ export default function CircuitCanvas({
               {comp.type === "LED" && (
                 <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full">
                   <div
-                    className={`w-5 h-5 rounded-full border-2 border-[#334155] flex items-center justify-center transition-all ${
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isDark ? "border-[#000000]" : "border-[#334155]"
+                    } ${
                       ledState === 1
-                        ? "bg-[#22c55e] shadow-[0_0_14px_#22c55e,0_0_4px_#22c55e]"
+                        ? "bg-[#22c55e] shadow-[0_0_16px_#22c55e,0_0_4px_#4ade80]"
                         : ledState === 0
-                          ? "bg-[#334155]"
+                          ? isDark ? "bg-[#0f172a] border-slate-700" : "bg-[#334155]"
                           : ledState === -2
-                            ? "bg-[#ef4444] shadow-[0_0_12px_#ef4444]"
+                            ? "bg-[#ef4444] shadow-[0_0_14px_#ef4444]"
                             : "bg-[#f59e0b] border-dashed"
                     }`}
                   >
@@ -497,7 +535,11 @@ export default function CircuitCanvas({
                       {ledState === 1 ? "1" : ledState === 0 ? "0" : ledState === -2 ? "!" : "?"}
                     </span>
                   </div>
-                  <span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">
+                  <span
+                    className={`text-[8px] font-bold uppercase tracking-wider mt-0.5 ${
+                      isDark ? "text-slate-300" : "text-slate-600"
+                    }`}
+                  >
                     LED
                   </span>
                 </div>
@@ -506,10 +548,18 @@ export default function CircuitCanvas({
               {/* C. Logic Gates: AND, OR, NOT, NAND, NOR, XOR, XNOR */}
               {isDigital && comp.type !== "SWITCH" && comp.type !== "LED" && (
                 <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full">
-                  <span className="text-xs font-black tracking-wider uppercase text-slate-800">
+                  <span
+                    className={`text-xs font-black tracking-wider uppercase ${
+                      isDark ? "text-slate-100" : "text-slate-800"
+                    }`}
+                  >
                     {comp.type}
                   </span>
-                  <div className="flex items-center gap-3 text-[7px] font-bold text-slate-500 uppercase tracking-tighter">
+                  <div
+                    className={`flex items-center gap-3 text-[7px] font-bold uppercase tracking-tighter ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
                     <span>{comp.type === "NOT" ? "IN" : "A / B"}</span>
                     <span>OUT</span>
                   </div>
@@ -518,7 +568,11 @@ export default function CircuitCanvas({
 
               {/* D. Analog Components */}
               {!isDigital && (
-                <div className="flex flex-col items-center pointer-events-none">
+                <div
+                  className={`flex flex-col items-center pointer-events-none ${
+                    isDark ? "text-slate-100" : "text-[#334155]"
+                  }`}
+                >
                   {analogIconMap[comp.type]}
                   <span className="text-[9px] font-bold uppercase tracking-wider mt-[2px]">
                     {comp.type}
@@ -528,14 +582,20 @@ export default function CircuitCanvas({
 
               {/* Analog Meter Value Hover Tooltip */}
               {hoveredMeterId === comp.id && simResults?.status === "success" && (
-                <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-[#334155] border-2 border-[#fce6b6] text-white px-3 py-1 text-xs font-bold font-mono shadow-[2px_2px_0px_rgba(0,0,0,0.5)] pointer-events-none whitespace-nowrap z-50">
+                <div
+                  className={`absolute -top-10 left-1/2 transform -translate-x-1/2 border-2 px-3 py-1 text-xs font-bold font-mono whitespace-nowrap z-50 pointer-events-none ${
+                    isDark
+                      ? "bg-[#0f172a] border-[#22c55e] text-white shadow-[2px_2px_0px_#000000]"
+                      : "bg-[#334155] border-[#fce6b6] text-white shadow-[2px_2px_0px_rgba(0,0,0,0.5)]"
+                  }`}
+                >
                   {comp.type === "voltmeter" && (
-                    <span className="text-[#a8d5ba]">
+                    <span className={isDark ? "text-emerald-400" : "text-[#a8d5ba]"}>
                       {Number(simResults.voltages?.[comp.id] || 0).toFixed(3)} V
                     </span>
                   )}
                   {comp.type === "ammeter" && (
-                    <span className="text-[#c8e1e9]">
+                    <span className={isDark ? "text-sky-300" : "text-[#c8e1e9]"}>
                       {Math.abs(Number(simResults.currents?.[comp.id] || 0)).toFixed(3)} A
                     </span>
                   )}
