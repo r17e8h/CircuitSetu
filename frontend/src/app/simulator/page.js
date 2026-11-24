@@ -86,20 +86,18 @@ export default function SimulatorWorkspace() {
     if (document.querySelector('script[src="/CircuitSetu/circuit_engine.js"]')) {
       return; 
     }
+    window.__wasmScriptInjected = true;
+
     window["Module"] = window["Module"] || {};
     window["Module"].onRuntimeInitialized = () => {
       console.log("C++ WebAssembly Brain Fully Online!");
       window.wasmReady = true;
     };
+
     const script = document.createElement("script");
     script.src = "/CircuitSetu/circuit_engine.js";
     script.async = true;
     document.body.appendChild(script);
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
   }, []);
 
   // When switching modes, re-evaluate if in digital mode
@@ -283,7 +281,7 @@ export default function SimulatorWorkspace() {
             />
           </div>
           <div className="flex-1 flex flex-col min-h-[300px]">
-            <SimulationPanel 
+            <SimulationPanel
               components={components}
               wires={wires}
               setSimResults={setSimResults}

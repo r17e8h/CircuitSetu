@@ -15,6 +15,7 @@ export default function SimulationPanel({
 }) {
   const [status, setStatus] = useState("Idle");
   const [solveTime, setSolveTime] = useState("--");
+  const [activeNetCount, setActiveNetCount] = useState(0);
 
   const handleRun = () => {
     if (setHasAttemptedRun) setHasAttemptedRun(true);

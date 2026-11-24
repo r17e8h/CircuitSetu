@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <map>
+#include <unordered_set>
 
 using json = nlohmann::json;
 using namespace Eigen;
@@ -121,6 +123,59 @@ std::string MNASolver::simulate(const std::string &frontend_payload) {
            "Unclosed Loop\"}";
   }
 }
+namespace {
+
+// Net states: 1 = high, 0 = low, -1 = floating/unknown, -2 = bus contention
+
+inline int logic_not(int v) {
+    return v == 0 ? 1 : (v == 1 ? 0 : -1);
+}
+
+bool is_gate(const std::string &t) {
+    static const std::unordered_set<std::string> gates = {
+        "AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"};
+    return gates.count(t) > 0;
+}
+
+
+int eval_gate(const std::string &type, const std::vector<int> &in) {
+    if (in.empty()) return -1;
+    if (type == "NOT") return logic_not(in[0]);
+
+    bool any0=false, any1=false, anyX=false;
+    int ones = 0;
+    for (int v : in) {
+        if (v == 0) any0 = true;
+        else if (v == 1) {any1 = true; ones++; }
+        else anyX = true;
+    }
+
+    if (type == "AND") return any0 ? 0 :(anyX ? -1 : 1);
+    if (type == "NAND") return any0 ? 1 :(anyX ? -1 : 0);
+    if (type == "OR") return any1 ? 1 :(anyX ? -1 : 0);
+    if (type == "NOR")return any1 ? 0 :(anyX ? -1 : 1);
+
+    if (type == "XOR" || type == "XNOR") {
+        if (anyX) return -1;
+        int x = ones & 1;
+        return type == "XOR" ? x : !x;
+    }
+    return -1;
+}
+
+int resolve_net(const std::vector<int> &drivers) {
+    bool has0 = false, has1 = false;
+    for (int v : drivers) {
+        if (v == 0) has0 = true;
+        else if (v == 1) has1 = true;
+    }
+    if (has0 && has1) return -2;   // short circuit 
+    if (has0) return 0;
+    if (has1) return 1;
+    return -1;
+}
+
+} // namespace
 extern "C" {
 EMSCRIPTEN_KEEPALIVE
 const char *run_circuit_simulation(const char *frontend_payload) {
@@ -142,32 +197,70 @@ const char *run_digital_simulation(const char *frontend_payload) {
     auto input = json::parse(frontend_payload);
     std::unordered_map<std::string, int> net_state;
 
-    if (input.contains("nets")) {
+    if (input.contains("nets") && input["nets"].is_array()) {
       for (const auto &net : input["nets"]) {
-        net_state[net.get<std::string>()] = -1;
-      }
-    }
-
-    if (input.contains("components")) {
-      for (const auto &comp : input["components"]) {
-        if (comp.value("type", "") == "SWITCH") {
-          std::string out_net = comp.value("out_net", "");
-          if (!out_net.empty()) {
-            net_state[out_net] = comp.value("state", 0);
-          }
+        if (net.is_string()) {
+          net_state.emplace(net.get<std::string>(), -1);
         }
       }
     }
 
+    json components = (input.contains("components") && input["components"].is_array()) ? input["components"] : json::array();
+
+    for (const auto &comp : components) {
+      if (comp.contains("out_net") && comp["out_net"].is_string()) {
+        std::string out = comp["out_net"].get<std::string>();
+        if (!out.empty())
+          net_state.emplace(out, -1);
+      }
+      if (comp.contains("in_nets") && comp["in_nets"].is_array()) {
+        for (const auto &n : comp["in_nets"]) {
+          if (n.is_string()) {
+            std::string in_name = n.get<std::string>();
+            if (!in_name.empty())
+              net_state.emplace(in_name, -1);
+          }
+        }
+      }
+    }
     bool changed = true;
     int ticks = 0;
     while (changed && ticks < 100) {
       changed = false;
       ticks++;
+      std::unordered_map<std::string, std::vector<int>> drivers;
+
+      for (const auto &comp : components) {
+        std::string type = comp.value("type", "");
+        if (!comp.contains("out_net") || !comp["out_net"].is_string()) continue;
+        std::string out = comp["out_net"].get<std::string>();
+        if (out.empty()) continue;
+
+        if (type == "SWITCH") { 
+          drivers[out].push_back(comp.value("state", 0) == 1 ? 1 : 0);
+        } else if (is_gate(type)) {
+          std::vector<int> in;
+          if (comp.contains("in_nets") && comp["in_nets"].is_array()) {
+            for (const auto &n : comp["in_nets"]) {
+              if (n.is_string()) {in.push_back(net_state[n.get<std::string>()]);} else {in.push_back(-1);}
+            }
+          }
+          drivers[out].push_back(eval_gate(type, in));
+        }
+      }
+      for (auto &kv : net_state) {
+        auto it = drivers.find(kv.first);
+        int next = (it == drivers.end()) ? -1 : resolve_net(it->second);
+        if (next != kv.second) {
+          kv.second = next;
+          changed = true;
+        }
+      }
     }
 
     json response;
-    response["status"] = "success";
+    response["status"] = (ticks >= 100) ? "oscillation_warning" : "success";
+    response["ticks"] = ticks;
     response["nets"] = net_state;
     digital_result_str = response.dump();
   } catch (const std::exception &e) {

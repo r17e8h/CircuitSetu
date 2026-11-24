@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-emcc circuit_engine.cpp \
+em++ circuit_engine.cpp \
   -O3 \
   -I /usr/include/eigen3 \
   -s WASM=1 \
