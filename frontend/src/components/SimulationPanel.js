@@ -1,20 +1,103 @@
-"use client"
-import { useState } from "react"
-import { generateSimulationPayload, generateDigitalPayload } from "../lib/netlistGenerator"
+"use client";
+
+import { useState, useEffect } from "react";
+import { generateSimulationPayload, simulateDigitalCircuit } from "../lib/netlistGenerator";
 
 export default function SimulationPanel({
   components,
   wires,
+  simResults,
   setSimResults,
   setHasAttemptedRun,
-  simMode = "analog",
+  simMode = "digital",
+  isDark = false
 }) {
   const [status, setStatus] = useState("Idle");
   const [solveTime, setSolveTime] = useState("--");
-  const [activeNetCount, setActiveNetCount] = useState(0);
+  const [diagnosticNote, setDiagnosticNote] = useState("");
+
+  useEffect(() => {
+    if (simMode !== "digital") {
+      setStatus("Idle");
+      setSolveTime("--");
+      setDiagnosticNote("");
+      return;
+    }
+
+    if (!components || components.length === 0) {
+      setStatus("Idle");
+      setDiagnosticNote("");
+      return;
+    }
+
+    if (simResults?.nets) {
+      const netValues = Object.values(simResults.nets);
+      const hasConflict = netValues.includes(-2);
+      const hasFloating = netValues.includes(-1);
+
+      if (hasConflict) {
+        setStatus("Conflict / Short");
+        setDiagnosticNote("1 & 0 shorted on same wire");
+      } else if (simResults.oscillating) {
+        setStatus("Oscillation Loop");
+        setDiagnosticNote("Unstable feedback did not settle");
+      } else {
+        setStatus("Live: Solved");
+        setDiagnosticNote(
+          hasFloating
+            ? "Warning: floating pin(s) detected"
+            : `Settled in ${simResults.ticks ?? 1} tick(s)`
+        );
+      }
+    }
+  }, [simMode, simResults, components]);
 
   const handleRun = () => {
     if (setHasAttemptedRun) setHasAttemptedRun(true);
+
+    if (!components || components.length === 0) {
+      setStatus("Canvas is empty");
+      setDiagnosticNote("");
+      return;
+    }
+
+    if (simMode === "digital") {
+      try {
+        setStatus("Verifying Logic...");
+        const startTime = performance.now();
+        const digitalResult = simulateDigitalCircuit(components, wires);
+        const endTime = performance.now();
+
+        setSimResults(digitalResult);
+        setSolveTime((endTime - startTime).toFixed(2));
+
+        const netValues = Object.values(digitalResult.nets || {});
+        const hasConflict = netValues.includes(-2);
+        const hasFloating = netValues.includes(-1);
+
+        if (hasConflict) {
+          setStatus("Conflict / Short");
+          setDiagnosticNote("Short circuit: conflicting drivers");
+        } else if (digitalResult.oscillating) {
+          setStatus("Oscillation Loop");
+          setDiagnosticNote("Feedback loop exceeded 100 ticks");
+        } else {
+          setStatus("Verified OK");
+          setDiagnosticNote(
+            hasFloating
+              ? "Pass (floating inputs present)"
+              : `Pass • ${digitalResult.ticks ?? 1} tick(s)`
+          );
+        }
+      } catch (e) {
+        console.error("Digital simulation error:", e);
+        setStatus("Simulation Error");
+        setSolveTime("--");
+        setDiagnosticNote("");
+      }
+      return;
+    }
+
     const isReady =
       typeof window !== "undefined" &&
       (window.wasmReady || (window.Module && window.Module.cwrap));
@@ -25,45 +108,10 @@ export default function SimulationPanel({
       return;
     }
 
-    if (!components || components.length === 0) {
-      setStatus("Canvas is empty");
-      return;
-    }
-
-    if (simMode === "digital") {
-      setStatus("Evaluating Logic...");
-      try {
-        const { payloadJson, wireNetMap } = generateDigitalPayload(components, wires);
-        console.log("Sending Digital Netlist to C++:", payloadJson);
-
-        const runDigital = window.Module.cwrap("run_digital_simulation", "string", ["string"]);
-        const startTime = performance.now();
-        const resultString = runDigital(payloadJson);
-        const endTime = performance.now();
-
-        const result = JSON.parse(resultString);
-        result.wireNetMap = wireNetMap;
-        setSimResults(result);
-        console.log("C++ Digital Result:", result);
-
-        if (result.status === "success") {
-          setStatus("Logic Solved");
-          setSolveTime((endTime - startTime).toFixed(2));
-          setActiveNetCount(Object.keys(result.nets || {}).length);
-        } else {
-          setStatus("Logic Error");
-          setSolveTime("--");
-        }
-      } catch (e) {
-        console.error("Digital simulation failed:", e);
-        setStatus("C++ Error");
-        setSolveTime("--");
-      }
-      return;
-    }
-
     const hasZeroValues = components.some(
-      (c) => (c.type === "resistor" || c.type === "battery") && (Number(c.value) === 0 || !c.value)
+      (c) =>
+        (c.type === "resistor" || c.type === "battery") &&
+        (Number(c.value) === 0 || !c.value)
     );
 
     if (hasZeroValues) {
@@ -71,19 +119,20 @@ export default function SimulationPanel({
       setSolveTime("--");
       return;
     }
+
     setStatus("Solving Matrix...");
+
     try {
       const rawPayload = generateSimulationPayload(components, wires);
       const safeStringPayload =
         typeof rawPayload === "string" ? rawPayload : JSON.stringify(rawPayload);
-      console.log("Sending to C++:", safeStringPayload);
       const runSimulation = window.Module.cwrap("run_circuit_simulation", "string", ["string"]);
       const startTime = performance.now();
       const resultString = runSimulation(safeStringPayload);
       const endTime = performance.now();
       const result = JSON.parse(resultString);
       setSimResults(result);
-      console.log("C++ Result:", result);
+
       if (result.status === "success") {
         setStatus("Solved Natively");
         setSolveTime((endTime - startTime).toFixed(2));
@@ -97,15 +146,13 @@ export default function SimulationPanel({
       setSolveTime("--");
     }
   };
-  const nodeCount = wires ? wires.length + 1 : 0;
+
+  // Bill of Materials breakdown
   const counts =
     components?.reduce((acc, comp) => {
       acc[comp.type] = (acc[comp.type] || 0) + 1;
       return acc;
     }, {}) || {};
-
-  const meterCount = (counts.ammeter || 0) + (counts.voltmeter || 0);
-  const sourceCount = (counts.battery || 0) + (counts.voltage_source || 0);
 
   const switchCount = counts.SWITCH || 0;
   const ledCount = counts.LED || 0;
@@ -118,52 +165,142 @@ export default function SimulationPanel({
     (counts.XOR || 0) +
     (counts.XNOR || 0);
 
+  const resistorCount = counts.resistor || 0;
+  const sourceCount = (counts.battery || 0) + (counts.voltage_source || 0);
+  const meterCount = (counts.ammeter || 0) + (counts.voltmeter || 0);
+  const wireCount = wires?.length || 0;
+  const nodeCount = wires ? wires.length + 1 : 0;
+
+  const isErrorOrWarn =
+    status.includes("Error") ||
+    status.includes("Conflict") ||
+    status.includes("Oscillation");
+
   return (
-    <aside className="w-full h-full flex flex-col font-mono text-slate-800">
-      <div className="p-4 border-b-2 border-[#334155] bg-[#a8d5ba] shadow-[0_4px_0px_rgba(51,65,85,0.1)] z-10 shrink-0">
-        <h2 className="font-bold uppercase tracking-widest text-sm text-center">Global Engine</h2>
+    <aside
+      className={`w-full h-full flex flex-col font-mono transition-colors duration-200 ${
+        isDark ? "bg-[#0f172a] text-slate-100" : "text-slate-800"
+      }`}
+    >
+      <div
+        className={`p-3 border-b-2 z-10 shrink-0 flex items-center justify-between transition-colors duration-200 ${
+          isDark
+            ? "border-[#334155] bg-[#1e293b] shadow-[0_4px_0px_#000000]"
+            : "border-[#334155] bg-[#a8d5ba] shadow-[0_4px_0px_rgba(51,65,85,0.1)]"
+        }`}
+      >
+        <h2 className="font-bold uppercase tracking-widest text-xs md:text-sm">
+          Simulation Engine
+        </h2>
+        <span
+          className={`text-[10px] font-bold px-1.5 py-0.5 border uppercase ${
+            isDark
+              ? "border-[#475569] bg-[#0f172a] text-emerald-400"
+              : "border-[#334155] bg-[#F9F8F4] text-slate-800"
+          }`}
+        >
+          {simMode === "digital" ? "DLCD Live" : "MNA DC"}
+        </span>
       </div>
-      <div className="mt-auto p-5 bg-[#F9F8F4] border-t-2 border-[#334155] flex-1 flex flex-col justify-end">
-        <div className="mb-auto mt-2 hidden md:block">
-          <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-2 tracking-widest border-b-2 border-slate-300 pb-1">
-            Bill of Materials
+
+      <div
+        className={`mt-auto p-4 border-t-2 flex-1 flex flex-col justify-end transition-colors duration-200 ${
+          isDark ? "bg-[#0f172a] border-[#334155]" : "bg-[#F9F8F4] border-[#334155]"
+        }`}
+      >
+        {/* Bill of Materials */}
+        <div className="mb-auto mt-1 hidden md:block">
+          <h3
+            className={`text-[10px] font-bold uppercase mb-2 tracking-widest border-b-2 pb-1 ${
+              isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-300"
+            }`}
+          >
+            Bill of Materials ({simMode.toUpperCase()})
           </h3>
           {simMode === "digital" ? (
             <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">SWITCHES</span>
-                <span className="text-[#528b6a] text-xs">{switchCount}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>SWITCHES</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{switchCount}</span>
               </div>
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">GATES</span>
-                <span className="text-[#528b6a] text-xs">{gateCount}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>GATES</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{gateCount}</span>
               </div>
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">LEDS</span>
-                <span className="text-[#528b6a] text-xs">{ledCount}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>LEDS</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{ledCount}</span>
               </div>
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">WIRES</span>
-                <span className="text-[#528b6a] text-xs">{wires?.length || 0}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>WIRES</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{wireCount}</span>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">RESISTORS</span>
-                <span className="text-[#528b6a] text-xs">{counts.resistor || 0}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>RESISTORS</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{resistorCount}</span>
               </div>
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">SOURCES</span>
-                <span className="text-[#528b6a] text-xs">{sourceCount}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>SOURCES</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{sourceCount}</span>
               </div>
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">METERS</span>
-                <span className="text-[#528b6a] text-xs">{meterCount}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>METERS</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{meterCount}</span>
               </div>
-              <div className="bg-white border-2 border-[#334155] p-2 flex justify-between items-center shadow-[2px_2px_0px_#334155]">
-                <span className="text-slate-500">WIRES</span>
-                <span className="text-[#528b6a] text-xs">{wires?.length || 0}</span>
+              <div
+                className={`border-2 p-2 flex justify-between items-center ${
+                  isDark
+                    ? "bg-[#1e293b] border-[#475569] shadow-[2px_2px_0px_#000000]"
+                    : "bg-white border-[#334155] shadow-[2px_2px_0px_#334155]"
+                }`}
+              >
+                <span className={isDark ? "text-slate-400" : "text-slate-500"}>WIRES</span>
+                <span className={`text-xs ${isDark ? "text-emerald-400" : "text-[#528b6a]"}`}>{wireCount}</span>
               </div>
             </div>
           )}
@@ -171,42 +308,94 @@ export default function SimulationPanel({
 
         <button
           onClick={handleRun}
-          className="w-full py-3 mt-4 md:mt-6 bg-[#a8d5ba] border-2 border-[#334155] font-bold tracking-widest uppercase shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] active:bg-[#64a982] transition-all mb-4 md:mb-6 flex items-center justify-center gap-2"
+          className={`w-full py-2.5 mt-3 md:mt-4 border-2 font-bold tracking-widest uppercase transition-all mb-3 md:mb-4 flex items-center justify-center gap-2 cursor-pointer text-xs md:text-sm hover:translate-x-[2px] hover:translate-y-[2px] ${
+            isDark
+              ? "bg-[#10b981] text-slate-950 border-[#475569] shadow-[4px_4px_0px_#000000] hover:shadow-[2px_2px_0px_#000000] active:bg-[#059669]"
+              : "bg-[#a8d5ba] text-slate-900 border-[#334155] shadow-[4px_4px_0px_#334155] hover:shadow-[2px_2px_0px_#334155] active:bg-[#64a982]"
+          }`}
         >
           <span
-            className={`w-2 h-2 rounded-full border border-[#334155] ${
-              status === "Idle" || status.includes("Error")
+            className={`w-2.5 h-2.5 rounded-full border border-black ${
+              status === "Idle" || status === "Canvas is empty" || isErrorOrWarn
                 ? "bg-red-500"
-                : "bg-green-500 animate-pulse"
+                : "bg-green-400 animate-pulse"
             }`}
-          ></span>
-          Run Simulation
+          />
+          {simMode === "digital" ? "Verify & Re-Run" : "Run Simulation"}
         </button>
 
-        <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-2 tracking-widest border-b-2 border-slate-300 pb-1">
-          WASM Telemetry
+        {/* Telemetry Panel */}
+        <h3
+          className={`text-[10px] font-bold uppercase mb-1.5 tracking-widest border-b-2 pb-1 ${
+            isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-300"
+          }`}
+        >
+          Engine Telemetry
         </h3>
-        <div className="space-y-2 text-xs font-bold bg-[#e2e8f0] border-2 border-[#334155] p-3 shadow-inner text-slate-600 mb-2">
-          <div className="flex justify-between border-b border-dashed border-slate-400 pb-1">
-            <span>Engine Status:</span>
-            <span className={status.includes("Error") || status.includes("⚠️") ? "text-red-500" : "text-[#528b6a]"}>
+        <div
+          className={`space-y-1.5 text-xs font-bold border-2 p-2.5 shadow-inner ${
+            isDark
+              ? "bg-[#1e293b] border-[#475569] text-slate-300"
+              : "bg-[#e2e8f0] border-[#334155] text-slate-600"
+          }`}
+        >
+          <div
+            className={`flex justify-between border-b border-dashed pb-1 ${
+              isDark ? "border-slate-700" : "border-slate-400"
+            }`}
+          >
+            <span>Status:</span>
+            <span
+              className={
+                isErrorOrWarn
+                  ? "text-red-500 font-black"
+                  : isDark ? "text-emerald-400" : "text-[#528b6a]"
+              }
+            >
               {status}
             </span>
           </div>
-          <div className="flex justify-between border-b border-dashed border-slate-400 pb-1 hidden md:flex">
+
+          {simMode === "digital" && diagnosticNote && (
+            <div
+              className={`text-[10px] border-b border-dashed pb-1 ${
+                isDark ? "border-slate-700 text-slate-400" : "border-slate-400 text-slate-600"
+              }`}
+            >
+              {diagnosticNote}
+            </div>
+          )}
+
+          <div
+            className={`flex justify-between border-b border-dashed pb-1 hidden md:flex ${
+              isDark ? "border-slate-700" : "border-slate-400"
+            }`}
+          >
             <span>Execution Time:</span>
-            <span className="text-[#528b6a]">{solveTime} ms</span>
+            <span className={isDark ? "text-emerald-400" : "text-[#528b6a]"}>{solveTime} ms</span>
           </div>
-          <div className="flex justify-between border-b border-dashed border-slate-400 pb-1 hidden md:flex">
-            <span>{simMode === "digital" ? "Logical Nets:" : "MNA Matrix:"}</span>
-            <span className="text-slate-800">
-              {simMode === "digital" ? `${activeNetCount} nets` : `${nodeCount}x${nodeCount}`}
+          <div
+            className={`flex justify-between border-b border-dashed pb-1 hidden md:flex ${
+              isDark ? "border-slate-700" : "border-slate-400"
+            }`}
+          >
+            <span>Circuit Size:</span>
+            <span className={isDark ? "text-slate-100" : "text-slate-800"}>
+              {simMode === "digital"
+                ? `${gateCount + switchCount} digital parts`
+                : `${nodeCount}x${nodeCount} MNA`}
             </span>
           </div>
-          <div className="flex justify-between pt-1">
+          <div className="flex justify-between pt-0.5">
             <span>Backend:</span>
-            <span className="bg-slate-800 text-white px-1 rounded-sm text-[10px]">
-              {simMode === "digital" ? "C++ / DLCD" : "C++ / EIGEN"}
+            <span
+              className={`px-1 rounded-sm text-[9px] ${
+                isDark
+                  ? "bg-[#0f172a] text-emerald-300 border border-slate-700"
+                  : "bg-slate-800 text-white"
+              }`}
+            >
+              {simMode === "digital" ? "DLCD / C++ WASM" : "C++ / EIGEN"}
             </span>
           </div>
         </div>
