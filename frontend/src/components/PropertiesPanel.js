@@ -17,8 +17,10 @@ export default function PropertiesPanel({
   useEffect(() => {
     if (comp && comp.value !== undefined) {
       setInputValue(comp.value.toString());
+    } else {
+      setInputValue("");
     }
-  }, [comp?.value]);
+  }, [comp?.id, comp?.value]);
 
   const isDigital = comp ? isDigitalType(comp.type) : false;
 
@@ -55,7 +57,7 @@ export default function PropertiesPanel({
 
       {/* CONTENT */}
       <div className="p-3 flex-1 overflow-y-auto">
-        {!selectedComponent && (
+        {!comp && (
           <p
             className={`text-xs text-center mt-6 ${
               isDark ? "text-slate-400" : "text-slate-600"
@@ -132,35 +134,45 @@ export default function PropertiesPanel({
                   </div>
                 )}
 
-                {comp.type === "LED" && (
-                  <div>
-                    <span className="text-xs font-bold block mb-1">LED Indicator</span>
-                    <div
-                      className={`flex items-center gap-2 p-2 border-2 ${
-                        isDark
-                          ? "bg-[#0f172a] border-[#475569]"
-                          : "bg-white border-[#334155]"
-                      }`}
-                    >
-                      <div 
-                        className={`w-4 h-4 rounded-full border transition-all ${
-                          isDark ? "border-[#000000]" : "border-[#334155]"
-                        } ${
-                          simResults?.ledStates?.[comp.id] === 1 || comp.state === 1
-                            ? "bg-[#22c55e] shadow-[0_0_8px_#22c55e]"
-                            : isDark
-                              ? "bg-[#334155]"
-                              : "bg-[#334155]"
+                {comp.type === "LED" && (() => {
+                  const ledState = simResults?.ledStates?.[comp.id] ?? -1;
+
+                  return (
+                    <div>
+                      <span className="text-xs font-bold block mb-1">LED Indicator</span>
+                      <div
+                        className={`flex items-center gap-2 p-2 border-2 ${
+                          isDark
+                            ? "bg-[#0f172a] border-[#475569]"
+                            : "bg-white border-[#334155]"
                         }`}
-                      />
-                      <span className="text-xs font-bold uppercase">
-                        {simResults?.ledStates?.[comp.id] === 1 || comp.state === 1 
-                          ? "Lit (HIGH / 1)" 
-                          : "Unlit (LOW / 0)"}
-                      </span>
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full border transition-all ${
+                            isDark ? "border-[#000000]" : "border-[#334155]"
+                          } ${
+                            ledState === 1
+                              ? "bg-[#22c55e] shadow-[0_0_8px_#22c55e]"
+                              : ledState === 0
+                                ? "bg-[#334155]"
+                                : ledState === -2
+                                  ? "bg-[#ef4444] shadow-[0_0_8px_#ef4444]"
+                                  : "bg-[#f59e0b] border-dashed"
+                          }`}
+                        />
+                        <span className="text-xs font-bold uppercase">
+                          {ledState === 1
+                            ? "Lit (HIGH / 1)"
+                            : ledState === 0
+                              ? "Unlit (LOW / 0)"
+                              : ledState === -2
+                                ? "Conflict / Short (!)"
+                                : "Floating / Unconnected (?)"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {["AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"].includes(comp.type) && (
                   <div
@@ -230,24 +242,21 @@ export default function PropertiesPanel({
                 <input
                   type="number"
                   value={inputValue}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => {
-                    setInputValue(e.target.value);
-                    const val = Number(e.target.value);
+                    const raw = e.target.value;
+                    setInputValue(raw);
+                    const parsed = Number(raw);
+                    const val = raw === "" || Number.isNaN(parsed) ? 0 : parsed;
                     setComponents((prev) =>
                       prev.map((c) =>
                         c.id === comp.id ? { ...c, value: val } : c
                       )
                     );
                   }}
-                  onFocus={() => {
-                    const defaultVal = comp.type === "battery" ? 9 : comp.type === "resistor" ? 100 : 0;
-                    if (inputValue === defaultVal.toString()) {
-                      setInputValue("");
-                    }
-                  }}
                   onBlur={() => {
                     if (inputValue === "") {
-                      const defaultVal = comp.type === "battery" ? 9 : comp.type === "resistor" ? 100 : 0;
+                      const defaultVal = comp.type === "battery" ? 9 : 100;
                       setInputValue(defaultVal.toString());
                       setComponents((prev) =>
                         prev.map((c) =>
@@ -261,8 +270,7 @@ export default function PropertiesPanel({
                       ? "bg-[#0f172a] border-[#475569] text-slate-100 focus:bg-[#1e293b]"
                       : "bg-white border-[#334155] text-slate-900 focus:bg-[#fce6b6]"
                   }`}
-                />
-              </>
+                />              </>
             )}
 
             {!isDigital && comp.type !== "battery" && comp.type !== "resistor" && (

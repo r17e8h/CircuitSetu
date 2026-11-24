@@ -25,35 +25,47 @@ export default function SimulatorWorkspace() {
   const [simMode, setSimMode] = useState("digital"); // Default to DLCD Digital Logic mode
 
   // Trigger digital re-simulation immediately upon switch toggle or wire/component edits
-  const handleTriggerSim = useCallback((currentComponents = components, currentWires = wires) => {
-    if (simMode === "digital") {
-      try {
-        const result = simulateDigitalCircuit(currentComponents, currentWires);
-        setSimResults(result);
-        if (result.wires) {
-          setWires(result.wires);
+  const handleTriggerSim = useCallback(
+    (currentComponents = components, currentWires = wires, modeOverride = simMode) => {
+      if (modeOverride === "digital") {
+        try {
+          const result = simulateDigitalCircuit(currentComponents, currentWires);
+          setSimResults(result);
+          if (result.wires) {
+            setWires(result.wires);
+          }
+        } catch (err) {
+          console.error("Digital auto-simulation error:", err);
         }
-      } catch (err) {
-        console.error("Digital auto-simulation error:", err);
       }
+    },
+    [simMode, components, wires]
+  );
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    try {
+      localStorage.setItem("circuit_components", JSON.stringify(components));
+      localStorage.setItem("circuit_wires", JSON.stringify(wires));
+    } catch (e) {
+      console.error("Error saving circuit to localStorage:", e);
     }
-  }, [simMode, components, wires]);
+  }, [components, wires, hasMounted]);
 
   useEffect(() => {
     setHasMounted(true);
     const savedComponents = localStorage.getItem("circuit_components");
     const savedWires = localStorage.getItem("circuit_wires");
-    
+
     let parsedComps = [];
     let parsedWires = [];
 
     if (savedComponents) {
       try {
         const raw = JSON.parse(savedComponents);
-        // Ensure all components have ports
         parsedComps = raw.map((c) => ({
           ...c,
-          ports: c.ports && c.ports.length > 0 ? c.ports : getDefaultPorts(c.type)
+          ports: c.ports && c.ports.length > 0 ? c.ports : getDefaultPorts(c.type),
         }));
         setComponents(parsedComps);
       } catch (e) {
@@ -70,8 +82,8 @@ export default function SimulatorWorkspace() {
       }
     }
 
-    // Auto-run initial digital simulation if components exist
-    if (parsedComps.length > 0) {
+    const runInitialSim = () => {
+      if (parsedComps.length === 0) return;
       try {
         const result = simulateDigitalCircuit(parsedComps, parsedWires);
         setSimResults(result);
@@ -81,17 +93,25 @@ export default function SimulatorWorkspace() {
       } catch (e) {
         console.error("Initial digital simulation error", e);
       }
+    };
+    if (window.wasmReady) {
+      runInitialSim();
+      return;
     }
 
-    if (document.querySelector('script[src="/CircuitSetu/circuit_engine.js"]')) {
-      return; 
+    if (
+      window.__wasmScriptInjected ||
+      document.querySelector('script[src="/CircuitSetu/circuit_engine.js"]')
+    ) {
+      return;
     }
+
     window.__wasmScriptInjected = true;
-
     window["Module"] = window["Module"] || {};
     window["Module"].onRuntimeInitialized = () => {
       console.log("C++ WebAssembly Brain Fully Online!");
       window.wasmReady = true;
+      runInitialSim();
     };
 
     const script = document.createElement("script");
@@ -100,16 +120,14 @@ export default function SimulatorWorkspace() {
     document.body.appendChild(script);
   }, []);
 
-  // When switching modes, re-evaluate if in digital mode
   const handleModeChange = (newMode) => {
     setSimMode(newMode);
     if (newMode === "digital") {
-      handleTriggerSim(components, wires);
+      handleTriggerSim(components, wires, "digital");
     } else {
       setSimResults(null);
     }
   };
-
   const handleAddComponent = (type) => {
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const baseX = isMobile ? 50 : 100;
@@ -284,10 +302,10 @@ export default function SimulatorWorkspace() {
             <SimulationPanel
               components={components}
               wires={wires}
+              simResults={simResults}
               setSimResults={setSimResults}
               setHasAttemptedRun={setHasAttemptedRun}
               simMode={simMode}
-              setSimMode={handleModeChange}
               isDark={isDark}
             />
           </div>

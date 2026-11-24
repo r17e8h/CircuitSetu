@@ -75,9 +75,9 @@ export function simulateDigitalCircuit(components, wires) {
   }
 
   // 1. Group connected pins via wires
-  wires.forEach(w => {
-    const p1 = `${w.from}:${w.fromPort || w.fromSide || 'out'}`;
-    const p2 = `${w.to}:${w.toPort || w.toSide || 'in'}`;
+  wires.forEach((w) => {
+    const p1 = `${w.from}:${w.fromPort || w.fromSide || "out"}`;
+    const p2 = `${w.to}:${w.toPort || w.toSide || "in"}`;
     union(p1, p2);
   });
 
@@ -93,31 +93,14 @@ export function simulateDigitalCircuit(components, wires) {
     return rootToNetId[root];
   }
 
-  // Assign netId to all wires
-  const wiresWithNets = wires.map(w => {
-    const p1 = `${w.from}:${w.fromPort || w.fromSide || 'out'}`;
+  const wiresWithNets = wires.map((w) => {
+    const p1 = `${w.from}:${w.fromPort || w.fromSide || "out"}`;
+    const p2 = `${w.to}:${w.toPort || w.toSide || "in"}`;
     const netId = getNetIdForPin(p1);
-    return {
-      ...w,
-      netId
-    };
-  });
-
-  // Ensure all pins that have wires are assigned a netId
-  wires.forEach(w => {
-    const p1 = `${w.from}:${w.fromPort || w.fromSide || 'out'}`;
-    const p2 = `${w.to}:${w.toPort || w.toSide || 'in'}`;
-    getNetIdForPin(p1);
     getNetIdForPin(p2);
+    return { ...w, netId };
   });
 
-  // Map to hold net state: 1 (HIGH), 0 (LOW), -1 (Floating), -2 (Conflict)
-  const netStates = {};
-  Object.values(rootToNetId).forEach(netId => {
-    netStates[netId] = -1; // Default to floating
-  });
-
-  // Helper to get net value connected to a specific component port
   function getPortNetId(compId, portId) {
     const pinKey = `${compId}:${portId}`;
     if (parent[pinKey] !== undefined) {
@@ -126,13 +109,66 @@ export function simulateDigitalCircuit(components, wires) {
     return null;
   }
 
+  const allNetIds = Object.values(rootToNetId);
+
+  // 3. Primary Solver: C++ WebAssembly Engine
+  if (typeof window !== "undefined" && window.Module && typeof window.Module.cwrap === "function") {
+    try {
+      const runDigitalSim = window.Module.cwrap("run_digital_simulation", "string", ["string"]);
+      const payload = JSON.stringify({
+        nets: allNetIds,
+        components: components.map((c) => ({
+          id: c.id.toString(),
+          type: c.type,
+          state: c.state ?? 0,
+          in_net: getPortNetId(c.id, "in") || "",
+          in1_net: getPortNetId(c.id, "in1") || "",
+          in2_net: getPortNetId(c.id, "in2") || "",
+          out_net: getPortNetId(c.id, "out") || "",
+        })),
+      });
+
+      const wasmResponse = JSON.parse(runDigitalSim(payload));
+
+      if (wasmResponse && wasmResponse.status === "success" && wasmResponse.nets) {
+        const ledStates = {};
+        components.forEach((comp) => {
+          if (comp.type === "LED") {
+            const inNet = getPortNetId(comp.id, "in");
+            ledStates[comp.id] =
+              inNet !== null && wasmResponse.nets[inNet] !== undefined
+                ? wasmResponse.nets[inNet]
+                : -1;
+          }
+        });
+
+        return {
+          status: "success",
+          nets: wasmResponse.nets,
+          wires: wiresWithNets,
+          ledStates,
+          ticks: wasmResponse.ticks ?? 0,
+          oscillating: wasmResponse.oscillating ?? false,
+          warnings: wasmResponse.warnings ?? [],
+        };
+      }
+    } catch (err) {
+      console.warn("WASM digital solver fallback triggered:", err);
+    }
+  }
+
+  // 4. Fallback Solver (runs only while WASM binary is still loading)
+  const netStates = {};
+  allNetIds.forEach((netId) => {
+    netStates[netId] = -1;
+  });
+
   function getPortValue(compId, portId) {
     const netId = getPortNetId(compId, portId);
     if (!netId || netStates[netId] === undefined) return -1;
     return netStates[netId];
   }
 
-  // 3. Iterative relaxation logic simulation (up to 50 ticks to settle cascaded gates)
   const MAX_TICKS = 50;
   let changed = true;
   let ticks = 0;
@@ -141,70 +177,50 @@ export function simulateDigitalCircuit(components, wires) {
     changed = false;
     ticks++;
 
-    // Net drivers map: netId -> Array of driven values [0, 1]
     const netDrivers = {};
-    Object.keys(netStates).forEach(netId => {
+    Object.keys(netStates).forEach((netId) => {
       netDrivers[netId] = [];
     });
 
-    // A. Switches drive their output net directly
-    components.forEach(comp => {
-      if (comp.type === 'SWITCH') {
-        const outNet = getPortNetId(comp.id, 'out');
+    components.forEach((comp) => {
+      if (comp.type === "SWITCH") {
+        const outNet = getPortNetId(comp.id, "out");
         if (outNet && netDrivers[outNet]) {
-          const switchVal = comp.state === 1 ? 1 : 0;
-          netDrivers[outNet].push(switchVal);
+          netDrivers[outNet].push(comp.state === 1 ? 1 : 0);
         }
       }
     });
 
-    // B. Logic gates evaluate inputs and drive their output nets
-    components.forEach(comp => {
+    components.forEach((comp) => {
       const type = comp.type;
-      if (['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR'].includes(type)) {
-        const outNet = getPortNetId(comp.id, 'out');
+      if (["AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"].includes(type)) {
+        const outNet = getPortNetId(comp.id, "out");
         if (!outNet || !netDrivers[outNet]) return;
 
         let gateOutput = -1;
-
-        if (type === 'NOT') {
-          const inVal = getPortValue(comp.id, 'in');
+        if (type === "NOT") {
+          const inVal = getPortValue(comp.id, "in");
           if (inVal === 1) gateOutput = 0;
           else if (inVal === 0) gateOutput = 1;
-          else gateOutput = -1;
         } else {
-          // 2-input gates
-          const in1 = getPortValue(comp.id, 'in1');
-          const in2 = getPortValue(comp.id, 'in2');
-
-          if (type === 'AND') {
+          const in1 = getPortValue(comp.id, "in1");
+          const in2 = getPortValue(comp.id, "in2");
+          if (type === "AND") {
             if (in1 === 0 || in2 === 0) gateOutput = 0;
             else if (in1 === 1 && in2 === 1) gateOutput = 1;
-            else gateOutput = -1;
-          } else if (type === 'OR') {
+          } else if (type === "OR") {
             if (in1 === 1 || in2 === 1) gateOutput = 1;
             else if (in1 === 0 && in2 === 0) gateOutput = 0;
-            else gateOutput = -1;
-          } else if (type === 'NAND') {
+          } else if (type === "NAND") {
             if (in1 === 0 || in2 === 0) gateOutput = 1;
             else if (in1 === 1 && in2 === 1) gateOutput = 0;
-            else gateOutput = -1;
-          } else if (type === 'NOR') {
+          } else if (type === "NOR") {
             if (in1 === 1 || in2 === 1) gateOutput = 0;
             else if (in1 === 0 && in2 === 0) gateOutput = 1;
-            else gateOutput = -1;
-          } else if (type === 'XOR') {
-            if ((in1 === 0 || in1 === 1) && (in2 === 0 || in2 === 1)) {
-              gateOutput = in1 ^ in2;
-            } else {
-              gateOutput = -1;
-            }
-          } else if (type === 'XNOR') {
-            if ((in1 === 0 || in1 === 1) && (in2 === 0 || in2 === 1)) {
-              gateOutput = in1 === in2 ? 1 : 0;
-            } else {
-              gateOutput = -1;
-            }
+          } else if (type === "XOR") {
+            if ((in1 === 0 || in1 === 1) && (in2 === 0 || in2 === 1)) gateOutput = in1 ^ in2;
+          } else if (type === "XNOR") {
+            if ((in1 === 0 || in1 === 1) && (in2 === 0 || in2 === 1)) gateOutput = in1 === in2 ? 1 : 0;
           }
         }
 
@@ -214,24 +230,16 @@ export function simulateDigitalCircuit(components, wires) {
       }
     });
 
-    // C. Resolve each net's new state from its drivers
-    Object.keys(netDrivers).forEach(netId => {
+    Object.keys(netDrivers).forEach((netId) => {
       const drivers = netDrivers[netId];
-      let resolved = -1; // Floating
-
+      let resolved = -1;
       if (drivers.length > 0) {
         const hasHigh = drivers.includes(1);
         const hasLow = drivers.includes(0);
-
-        if (hasHigh && hasLow) {
-          resolved = -2; // Short Circuit / Conflict
-        } else if (hasHigh) {
-          resolved = 1; // High
-        } else if (hasLow) {
-          resolved = 0; // Low
-        }
+        if (hasHigh && hasLow) resolved = -2;
+        else if (hasHigh) resolved = 1;
+        else if (hasLow) resolved = 0;
       }
-
       if (netStates[netId] !== resolved) {
         netStates[netId] = resolved;
         changed = true;
@@ -239,40 +247,21 @@ export function simulateDigitalCircuit(components, wires) {
     });
   }
 
-  // 4. Resolve LED states
   const ledStates = {};
-  components.forEach(comp => {
-    if (comp.type === 'LED') {
-      const inNet = getPortNetId(comp.id, 'in');
+  components.forEach((comp) => {
+    if (comp.type === "LED") {
+      const inNet = getPortNetId(comp.id, "in");
       ledStates[comp.id] = inNet !== null && netStates[inNet] !== undefined ? netStates[inNet] : -1;
     }
   });
 
-  // 5. Invoke C++ WASM digital engine stub if runtime is initialized
-  if (typeof window !== 'undefined' && window.Module && typeof window.Module.cwrap === 'function') {
-    try {
-      const runDigitalSim = window.Module.cwrap('run_digital_simulation', 'string', ['string']);
-      const payload = JSON.stringify({
-        nets: Object.keys(netStates),
-        components: components.map(c => ({
-          id: c.id.toString(),
-          type: c.type,
-          state: c.state ?? 0,
-          out_net: getPortNetId(c.id, 'out') || ""
-        }))
-      });
-      runDigitalSim(payload);
-    } catch {
-      // WASM call optional fallback
-    }
-  }
-
   return {
-    status: 'success',
+    status: "success",
     nets: netStates,
     wires: wiresWithNets,
     ledStates,
-    ticks
+    ticks,
+    warnings: [],
   };
 }
 

@@ -57,8 +57,12 @@ export default function CircuitCanvas({
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("circuit_components", JSON.stringify(components));
-    localStorage.setItem("circuit_wires", JSON.stringify(wires));
+    try {
+      localStorage.setItem("circuit_components", JSON.stringify(components));
+      localStorage.setItem("circuit_wires", JSON.stringify(wires));
+    } catch (err) {
+      console.error("Failed to save circuit state to localStorage:", err);
+    }
   }, [components, wires]);
 
   function startWire(id, portId) {
@@ -172,9 +176,13 @@ export default function CircuitCanvas({
         }
 
         if (draggingId !== null) {
+          const dx = (e.clientX - pointerStartRef.current.x) / zoom;
+          const dy = (e.clientY - pointerStartRef.current.y) / zoom;
+          if (Math.hypot(dx, dy) < 3 && !hasMovedRef.current) return;
+
           hasMovedRef.current = true;
-          const x = canvasX - 40;
-          const y = canvasY - 20;
+          const x = pointerStartRef.current.compX + dx;
+          const y = pointerStartRef.current.compY + dy;
 
           setComponents((prev) =>
             prev.map((c) => (c.id === draggingId ? { ...c, x, y } : c))
@@ -197,28 +205,48 @@ export default function CircuitCanvas({
 
           let targetComp = null;
           let targetPortId = null;
+          let minDist = 18;
 
           components.forEach((c) => {
-            const ports = c.ports && c.ports.length > 0 ? c.ports : getDefaultPorts(c.type);
-            ports.forEach((p) => {
+            const compPorts =
+              c.ports && c.ports.length > 0 ? c.ports : getDefaultPorts(c.type);
+            compPorts.forEach((p) => {
               const portX = c.x + p.offsetX;
               const portY = c.y + p.offsetY;
-              if (Math.hypot(x - portX, y - portY) < 18) {
+              const d = Math.hypot(x - portX, y - portY);
+              if (d < minDist) {
+                minDist = d;
                 targetComp = c;
                 targetPortId = p.id;
               }
             });
           });
 
+          const startPort = wireStart.portId || wireStart.side;
+          const alreadyConnected =
+            targetComp &&
+            wires.some(
+              (w) =>
+                (w.from === wireStart.id &&
+                  (w.fromPort || w.fromSide) === startPort &&
+                  w.to === targetComp.id &&
+                  (w.toPort || w.toSide) === targetPortId) ||
+                (w.to === wireStart.id &&
+                  (w.toPort || w.toSide) === startPort &&
+                  w.from === targetComp.id &&
+                  (w.fromPort || w.fromSide) === targetPortId)
+            );
+
           if (
             targetComp &&
-            !(targetComp.id === wireStart.id && targetPortId === (wireStart.portId || wireStart.side))
+            !alreadyConnected &&
+            !(targetComp.id === wireStart.id && targetPortId === startPort)
           ) {
             const newWire = {
               id: `w-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
               from: wireStart.id,
-              fromPort: wireStart.portId || wireStart.side,
-              fromSide: wireStart.portId || wireStart.side,
+              fromPort: startPort,
+              fromSide: startPort,
               to: targetComp.id,
               toPort: targetPortId,
               toSide: targetPortId
@@ -362,10 +390,12 @@ export default function CircuitCanvas({
           const showError = hasAttemptedRun && isInputType && isZero;
 
           // LED state styling
-          const ledNetId = comp.type === "LED" ? getConnectedNetId(comp.id, "in") : null;
-          const ledState = comp.type === "LED" && simResults?.nets && ledNetId !== undefined 
-            ? simResults.nets[ledNetId] 
-            : (simResults?.ledStates?.[comp.id] ?? comp.state ?? -1);
+          const ledPortId = comp.type === "LED" ? (ports[0]?.id || "in") : null;
+          const ledNetId = comp.type === "LED" ? getConnectedNetId(comp.id, ledPortId) : null;
+          const ledState =
+            comp.type === "LED" && simResults?.nets && ledNetId !== undefined
+              ? simResults.nets[ledNetId]
+              : (simResults?.ledStates?.[comp.id] ?? comp.state ?? -1);
 
           return (
             <div
@@ -399,7 +429,13 @@ export default function CircuitCanvas({
                 if (e.target.classList.contains("port")) return;
                 setSelectedComponent(comp.id);
                 setDraggingId(comp.id);
-                pointerStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                pointerStartRef.current = {
+                  x: e.clientX,
+                  y: e.clientY,
+                  compX: comp.x,
+                  compY: comp.y,
+                  time: Date.now()
+                };
                 hasMovedRef.current = false;
               }}
               onPointerUp={(e) => {
@@ -477,11 +513,8 @@ export default function CircuitCanvas({
 
               {/* A. SWITCH Component: Interactive on-canvas toggle */}
               {comp.type === "SWITCH" && (
-                <div 
-                  className="flex flex-col items-center justify-center w-full h-full cursor-pointer px-1 py-0.5"
-                  onClick={() => toggleSwitch(comp)}
-                >
-                  <div className="flex items-center gap-1.5 pointer-events-none">
+                <div className="flex flex-col items-center justify-center w-full h-full pointer-events-none px-1 py-0.5">
+                  <div className="flex items-center gap-1.5">
                     <span
                       className={`text-xs font-black px-2 py-0.5 border-2 transition-all ${
                         isDark ? "border-[#000000]" : "border-[#334155]"
@@ -506,7 +539,7 @@ export default function CircuitCanvas({
                     </span>
                   </div>
                   <span
-                    className={`text-[8px] font-bold uppercase tracking-widest mt-0.5 pointer-events-none ${
+                    className={`text-[8px] font-bold uppercase tracking-widest mt-0.5 ${
                       isDark ? "text-slate-400" : "text-slate-500"
                     }`}
                   >

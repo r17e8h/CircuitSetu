@@ -10,7 +10,7 @@ export default function LandingPage() {
   const { isDark } = useTheme();
 
   return (
-    <div 
+    <div
       className={`min-h-screen font-mono flex flex-col selection:bg-[#a8d5ba] transition-colors duration-200 ${
         isDark ? "bg-[#0b0f17] text-slate-100" : "bg-[#F9F8F4] text-slate-800"
       }`}
@@ -19,19 +19,19 @@ export default function LandingPage() {
         backgroundImage: isDark
           ? "linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)"
           : "linear-gradient(#e2e2e2 1px, transparent 1px), linear-gradient(90deg, #e2e2e2 1px, transparent 1px)",
-        backgroundSize: "24px 24px"
+        backgroundSize: "24px 24px",
       }}
     >
       {/* 1. Navbar */}
       <nav
-        className={`w-full px-6 md:px-8 py-4 md:py-5 flex flex-col sm:flex-row justify-between items-center border-b-2 fixed top-0 z-50 transition-colors duration-200 ${
+        className={`w-full px-6 md:px-8 py-3.5 flex flex-col sm:flex-row justify-between items-center border-b-2 sticky top-0 z-50 shrink-0 transition-colors duration-200 ${
           isDark
             ? "border-[#334155] bg-[#0f172a] shadow-[4px_4px_0px_#000000]"
             : "border-slate-800 bg-[#F9F8F4] shadow-[4px_4px_0px_#ccc]"
         }`}
       >
-        <div className="flex items-center gap-3 mb-3 sm:mb-0">
-          <Logo className="h-9 w-auto" />
+        <div className="flex items-center gap-3 mb-2 sm:mb-0">
+          <Logo className="h-8 w-auto" />
           <span
             className={`text-2xl font-bold tracking-tight ${
               isDark ? "text-slate-100" : "text-slate-700"
@@ -40,12 +40,14 @@ export default function LandingPage() {
             Circuit<span className="text-[#10b981]">Setu</span>
           </span>
         </div>
-        
+
         <div className="flex items-center gap-4 sm:gap-6 text-xs md:text-sm font-bold tracking-widest uppercase">
           <Link
             href="/simulator"
             className={`border-b-2 pb-1 transition-colors ${
-              isDark ? "border-emerald-400 text-emerald-400" : "border-slate-800 text-slate-900"
+              isDark
+                ? "border-emerald-400 text-emerald-400"
+                : "border-slate-800 text-slate-900"
             }`}
           >
             Simulator
@@ -60,29 +62,28 @@ export default function LandingPage() {
           >
             Github
           </a>
-          {/* Theme Toggle Button */}
           <ThemeToggle />
         </div>
       </nav>
 
       {/* 2. Hero Section */}
       <main
-        className={`flex-1 flex flex-col justify-center items-center px-4 pt-28 md:pt-32 pb-16 text-center border-b-2 transition-colors duration-200 ${
+        className={`flex-1 flex flex-col justify-center items-center px-4 py-8 md:py-10 text-center border-b-2 transition-colors duration-200 ${
           isDark
             ? "border-[#334155] bg-[#0f172a]/70"
             : "border-slate-800 bg-white/40"
         }`}
       >
         <h1
-          className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter mb-6 uppercase ${
+          className={`text-3xl sm:text-4xl md:text-5xl font-bold tracking-tighter mb-4 uppercase ${
             isDark ? "text-slate-100" : "text-slate-700"
           }`}
         >
-          High-Performance <br/> Circuit Simulation.
+          High-Performance <br /> Circuit Simulation.
         </h1>
 
         <div
-          className={`inline-block mb-6 px-4 py-1.5 border-2 border-dashed text-xs md:text-sm font-bold tracking-widest uppercase ${
+          className={`inline-block mb-4 px-4 py-1 border-2 border-dashed text-xs md:text-sm font-bold tracking-widest uppercase ${
             isDark
               ? "border-amber-500 bg-[#1e293b] text-amber-400"
               : "border-[#bfa75d] bg-[#fcf9e3] text-[#9c8438]"
@@ -90,9 +91,8 @@ export default function LandingPage() {
         >
           [Dual-Mode: Analog DC & DLCD Digital Logic]
         </div>
-        
         <p
-          className={`text-sm md:text-base lg:text-lg mb-8 max-w-2xl mx-auto leading-relaxed ${
+          className={`text-sm md:text-base mb-6 max-w-2xl mx-auto leading-relaxed ${
             isDark ? "text-slate-300" : "text-slate-700"
           }`}
         >
@@ -101,17 +101,17 @@ export default function LandingPage() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <Link 
-            href="/simulator" 
-            className="px-6 py-2.5 md:px-8 md:py-3 bg-[#10b981] text-slate-950 font-black uppercase tracking-wider border-2 border-slate-900 shadow-[4px_4px_0px_#000000] hover:shadow-[2px_2px_0px_#000000] hover:translate-x-[2px] hover:translate-y-[2px] transition-all flex items-center gap-2 text-xs md:text-sm cursor-pointer"
+          <Link
+            href="/simulator"
+            className="px-6 py-2.5 md:px-7 md:py-2.5 bg-[#10b981] text-slate-950 font-black uppercase tracking-wider border-2 border-slate-900 shadow-[4px_4px_0px_#000000] hover:shadow-[2px_2px_0px_#000000] hover:translate-x-[2px] hover:translate-y-[2px] transition-all flex items-center gap-2 text-xs md:text-sm cursor-pointer"
           >
             <FaBolt /> Enter Workspace
           </Link>
-          <a 
-            href="https://github.com/r17e8h/CircuitSetu" 
-            target="_blank" 
-            rel="noreferrer" 
-            className={`px-6 py-2.5 md:px-8 md:py-3 font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-2 text-xs md:text-sm cursor-pointer ${
+          <a
+            href="https://github.com/r17e8h/CircuitSetu"
+            target="_blank"
+            rel="noreferrer"
+            className={`px-6 py-2.5 md:px-7 md:py-2.5 font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-2 text-xs md:text-sm cursor-pointer ${
               isDark
                 ? "bg-[#1e293b] text-slate-100 border-[#475569] shadow-[4px_4px_0px_#000000] hover:shadow-[2px_2px_0px_#000000] hover:translate-x-[2px] hover:translate-y-[2px]"
                 : "bg-[#8ab4f8] text-slate-900 border-slate-900 shadow-[4px_4px_0px_#0f172a] hover:shadow-[2px_2px_0px_#0f172a] hover:translate-x-[2px] hover:translate-y-[2px]"
@@ -124,48 +124,67 @@ export default function LandingPage() {
 
       {/* 3. Feature Highlights Grid */}
       <section
-        className={`grid grid-cols-1 md:grid-cols-3 border-b-2 transition-colors duration-200 ${
+        className={`grid grid-cols-1 md:grid-cols-3 border-b-2 shrink-0 transition-colors duration-200 ${
           isDark ? "border-[#334155]" : "border-slate-800"
         }`}
       >
         <div
-          className={`border-b-2 md:border-b-0 md:border-r-2 p-6 md:p-8 flex flex-col items-center text-center transition-colors duration-200 ${
+          className={`border-b-2 md:border-b-0 md:border-r-2 p-5 md:p-6 flex flex-col items-center text-center transition-colors duration-200 ${
             isDark
               ? "bg-[#131d2e] border-[#334155] text-slate-200"
               : "bg-[#c8e1e9] border-slate-800 text-slate-800"
           }`}
         >
           <h3
-            className={`font-bold uppercase tracking-widest mb-4 border-b-2 pb-2 w-full text-xs md:text-sm ${
+            className={`font-bold uppercase tracking-widest mb-3 border-b-2 pb-1.5 w-full text-xs md:text-sm ${
               isDark ? "border-[#334155] text-emerald-400" : "border-slate-800"
             }`}
           >
             C++ MNA Core Engine
           </h3>
-          <svg width="100" height="50" viewBox="0 0 100 60" className={`stroke-2 fill-none mb-3 ${isDark ? "stroke-slate-200" : "stroke-slate-800"}`}>
-            <circle cx="25" cy="30" r="12" className={isDark ? "fill-[#1e293b]" : "fill-[#9aaeb8]"} />
+          <svg
+            width="90"
+            height="44"
+            viewBox="0 0 100 60"
+            className={`stroke-2 fill-none mb-2.5 ${
+              isDark ? "stroke-slate-200" : "stroke-slate-800"
+            }`}
+          >
+            <circle
+              cx="25"
+              cy="30"
+              r="12"
+              className={isDark ? "fill-[#1e293b]" : "fill-[#9aaeb8]"}
+            />
             <path d="M 45 30 L 55 30 L 60 15 L 70 45 L 75 30 L 90 30" />
           </svg>
-          <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+          <p className={`text-xs leading-snug ${isDark ? "text-slate-400" : "text-slate-600"}`}>
             Modified Nodal Analysis with Eigen3 for fast matrix decomposition.
           </p>
         </div>
 
         <div
-          className={`border-b-2 md:border-b-0 md:border-r-2 p-6 md:p-8 flex flex-col items-center text-center transition-colors duration-200 ${
+          className={`border-b-2 md:border-b-0 md:border-r-2 p-5 md:p-6 flex flex-col items-center text-center transition-colors duration-200 ${
             isDark
               ? "bg-[#10241e] border-[#334155] text-slate-200"
               : "bg-[#bfe3cc] border-slate-800 text-slate-800"
           }`}
         >
           <h3
-            className={`font-bold uppercase tracking-widest mb-4 border-b-2 pb-2 w-full text-xs md:text-sm ${
+            className={`font-bold uppercase tracking-widest mb-3 border-b-2 pb-1.5 w-full text-xs md:text-sm ${
               isDark ? "border-[#334155] text-emerald-400" : "border-slate-800"
             }`}
           >
             DLCD Digital Logic
           </h3>
-          <svg width="80" height="50" viewBox="0 0 80 60" className={`stroke-2 ${isDark ? "stroke-slate-200" : "stroke-slate-800"}`}>
+          <svg
+            width="72"
+            height="44"
+            viewBox="0 0 80 60"
+            className={`stroke-2 mb-2.5 ${
+              isDark ? "stroke-slate-200" : "stroke-slate-800"
+            }`}
+          >
             <rect x="0" y="0" width="80" height="60" fill={isDark ? "#1e293b" : "white"} />
             <rect x="0" y="0" width="20" height="60" fill={isDark ? "#065f46" : "#a4c2b0"} />
             <rect x="0" y="0" width="80" height="20" fill={isDark ? "#065f46" : "#a4c2b0"} />
@@ -174,26 +193,33 @@ export default function LandingPage() {
             <line x1="20" y1="0" x2="20" y2="60" />
             <line x1="50" y1="0" x2="50" y2="60" />
           </svg>
-          <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+          <p className={`text-xs leading-snug ${isDark ? "text-slate-400" : "text-slate-600"}`}>
             Logic gates, switches, glowing LEDs, and real-time wire state coloring.
           </p>
         </div>
 
         <div
-          className={`p-6 md:p-8 flex flex-col items-center text-center transition-colors duration-200 ${
+          className={`p-5 md:p-6 flex flex-col items-center text-center transition-colors duration-200 ${
             isDark
               ? "bg-[#1e1b2e] text-slate-200"
               : "bg-[#fce6b6] text-slate-800"
           }`}
         >
           <h3
-            className={`font-bold uppercase tracking-widest mb-4 border-b-2 pb-2 w-full text-xs md:text-sm ${
+            className={`font-bold uppercase tracking-widest mb-3 border-b-2 pb-1.5 w-full text-xs md:text-sm ${
               isDark ? "border-[#334155] text-amber-400" : "border-slate-800"
             }`}
           >
             Multi-Port Canvas
           </h3>
-          <svg width="100" height="50" viewBox="0 0 100 60" className={`stroke-2 ${isDark ? "stroke-slate-200" : "stroke-slate-800"}`}>
+          <svg
+            width="90"
+            height="44"
+            viewBox="0 0 100 60"
+            className={`stroke-2 mb-2.5 ${
+              isDark ? "stroke-slate-200" : "stroke-slate-800"
+            }`}
+          >
             <rect x="10" y="20" width="20" height="15" fill={isDark ? "#38bdf8" : "#8ab4f8"} />
             <rect x="40" y="5" width="20" height="15" fill={isDark ? "#34d399" : "#a8d5ba"} />
             <rect x="70" y="20" width="20" height="15" fill={isDark ? "#fbbf24" : "#ffcda2"} />
@@ -201,7 +227,7 @@ export default function LandingPage() {
             <line x1="30" y1="27" x2="70" y2="27" />
             <line x1="50" y1="20" x2="50" y2="40" />
           </svg>
-          <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+          <p className={`text-xs leading-snug ${isDark ? "text-slate-400" : "text-slate-600"}`}>
             Interactive schematic editor with exact pin snapping and touch support.
           </p>
         </div>
@@ -209,10 +235,10 @@ export default function LandingPage() {
 
       {/* 4. Footer */}
       <footer
-        className={`py-3 text-center text-xs font-bold transition-colors duration-200 ${
+        className={`py-3 px-4 text-center text-xs font-bold shrink-0 transition-colors duration-200 ${
           isDark
-            ? "bg-[#0b0f17] border-t-2 border-[#334155] text-slate-500"
-            : "bg-[#f0c2a5] border-slate-800 text-slate-700"
+            ? "bg-[#0b0f17] text-slate-400"
+            : "bg-[#f0c2a5] text-slate-800"
         }`}
       >
         <span>CircuitSetu • Open Source Web Simulator</span>

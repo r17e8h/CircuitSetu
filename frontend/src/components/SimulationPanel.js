@@ -1,34 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { generateSimulationPayload, simulateDigitalCircuit } from "../lib/netlistGenerator";
-import { isDigitalType } from "../lib/digitalSchema";
 
-export default function SimulationPanel({ 
-  components, 
-  wires, 
-  setSimResults, 
+export default function SimulationPanel({
+  components,
+  wires,
+  simResults,
+  setSimResults,
   setHasAttemptedRun,
   simMode = "digital",
-  setSimMode,
   isDark = false
 }) {
   const [status, setStatus] = useState("Idle");
   const [solveTime, setSolveTime] = useState("--");
-  const [activeNetCount, setActiveNetCount] = useState(0);
+  const [diagnosticNote, setDiagnosticNote] = useState("");
+
+  useEffect(() => {
+    if (simMode !== "digital") {
+      setStatus("Idle");
+      setSolveTime("--");
+      setDiagnosticNote("");
+      return;
+    }
+
+    if (!components || components.length === 0) {
+      setStatus("Idle");
+      setDiagnosticNote("");
+      return;
+    }
+
+    if (simResults?.nets) {
+      const netValues = Object.values(simResults.nets);
+      const hasConflict = netValues.includes(-2);
+      const hasFloating = netValues.includes(-1);
+
+      if (hasConflict) {
+        setStatus("Conflict / Short");
+        setDiagnosticNote("1 & 0 shorted on same wire");
+      } else if (simResults.oscillating) {
+        setStatus("Oscillation Loop");
+        setDiagnosticNote("Unstable feedback did not settle");
+      } else {
+        setStatus("Live: Solved");
+        setDiagnosticNote(
+          hasFloating
+            ? "Warning: floating pin(s) detected"
+            : `Settled in ${simResults.ticks ?? 1} tick(s)`
+        );
+      }
+    }
+  }, [simMode, simResults, components]);
 
   const handleRun = () => {
     if (setHasAttemptedRun) setHasAttemptedRun(true);
 
     if (!components || components.length === 0) {
       setStatus("Canvas is empty");
+      setDiagnosticNote("");
       return;
     }
 
     if (simMode === "digital") {
-      // DIGITAL LOGIC SIMULATION
       try {
-        setStatus("Propagating Logic...");
+        setStatus("Verifying Logic...");
         const startTime = performance.now();
         const digitalResult = simulateDigitalCircuit(components, wires);
         const endTime = performance.now();
@@ -36,22 +71,36 @@ export default function SimulationPanel({
         setSimResults(digitalResult);
         setSolveTime((endTime - startTime).toFixed(2));
 
-        const hasConflict = Object.values(digitalResult.nets || {}).includes(-2);
+        const netValues = Object.values(digitalResult.nets || {});
+        const hasConflict = netValues.includes(-2);
+        const hasFloating = netValues.includes(-1);
+
         if (hasConflict) {
           setStatus("Conflict / Short");
+          setDiagnosticNote("Short circuit: conflicting drivers");
+        } else if (digitalResult.oscillating) {
+          setStatus("Oscillation Loop");
+          setDiagnosticNote("Feedback loop exceeded 100 ticks");
         } else {
-          setStatus("Solved Natively");
+          setStatus("Verified OK");
+          setDiagnosticNote(
+            hasFloating
+              ? "Pass (floating inputs present)"
+              : `Pass • ${digitalResult.ticks ?? 1} tick(s)`
+          );
         }
       } catch (e) {
         console.error("Digital simulation error:", e);
         setStatus("Simulation Error");
         setSolveTime("--");
+        setDiagnosticNote("");
       }
       return;
     }
 
-    // ANALOG SIMULATION
-    const isReady = typeof window !== "undefined" && (window.wasmReady || (window.Module && window.Module.cwrap));
+    const isReady =
+      typeof window !== "undefined" &&
+      (window.wasmReady || (window.Module && window.Module.cwrap));
 
     if (!isReady) {
       setStatus("Engine Warming Up...");
@@ -75,7 +124,8 @@ export default function SimulationPanel({
 
     try {
       const rawPayload = generateSimulationPayload(components, wires);
-      const safeStringPayload = typeof rawPayload === "string" ? rawPayload : JSON.stringify(rawPayload);
+      const safeStringPayload =
+        typeof rawPayload === "string" ? rawPayload : JSON.stringify(rawPayload);
       const runSimulation = window.Module.cwrap("run_circuit_simulation", "string", ["string"]);
       const startTime = performance.now();
       const resultString = runSimulation(safeStringPayload);
@@ -121,6 +171,11 @@ export default function SimulationPanel({
   const wireCount = wires?.length || 0;
   const nodeCount = wires ? wires.length + 1 : 0;
 
+  const isErrorOrWarn =
+    status.includes("Error") ||
+    status.includes("Conflict") ||
+    status.includes("Oscillation");
+
   return (
     <aside
       className={`w-full h-full flex flex-col font-mono transition-colors duration-200 ${
@@ -144,7 +199,7 @@ export default function SimulationPanel({
               : "border-[#334155] bg-[#F9F8F4] text-slate-800"
           }`}
         >
-          {simMode === "digital" ? "DLCD Logic" : "MNA DC"}
+          {simMode === "digital" ? "DLCD Live" : "MNA DC"}
         </span>
       </div>
 
@@ -251,7 +306,6 @@ export default function SimulationPanel({
           )}
         </div>
 
-        {/* Run Simulation Button */}
         <button
           onClick={handleRun}
           className={`w-full py-2.5 mt-3 md:mt-4 border-2 font-bold tracking-widest uppercase transition-all mb-3 md:mb-4 flex items-center justify-center gap-2 cursor-pointer text-xs md:text-sm hover:translate-x-[2px] hover:translate-y-[2px] ${
@@ -262,12 +316,12 @@ export default function SimulationPanel({
         >
           <span
             className={`w-2.5 h-2.5 rounded-full border border-black ${
-              status === "Idle" || status.includes("Error") || status.includes("Conflict")
+              status === "Idle" || status === "Canvas is empty" || isErrorOrWarn
                 ? "bg-red-500"
                 : "bg-green-400 animate-pulse"
             }`}
           />
-          Run Simulation
+          {simMode === "digital" ? "Verify & Re-Run" : "Run Simulation"}
         </button>
 
         {/* Telemetry Panel */}
@@ -293,7 +347,7 @@ export default function SimulationPanel({
             <span>Status:</span>
             <span
               className={
-                status.includes("Error") || status.includes("Conflict")
+                isErrorOrWarn
                   ? "text-red-500 font-black"
                   : isDark ? "text-emerald-400" : "text-[#528b6a]"
               }
@@ -301,6 +355,17 @@ export default function SimulationPanel({
               {status}
             </span>
           </div>
+
+          {simMode === "digital" && diagnosticNote && (
+            <div
+              className={`text-[10px] border-b border-dashed pb-1 ${
+                isDark ? "border-slate-700 text-slate-400" : "border-slate-400 text-slate-600"
+              }`}
+            >
+              {diagnosticNote}
+            </div>
+          )}
+
           <div
             className={`flex justify-between border-b border-dashed pb-1 hidden md:flex ${
               isDark ? "border-slate-700" : "border-slate-400"
@@ -316,7 +381,9 @@ export default function SimulationPanel({
           >
             <span>Circuit Size:</span>
             <span className={isDark ? "text-slate-100" : "text-slate-800"}>
-              {simMode === "digital" ? `${gateCount + switchCount} digital parts` : `${nodeCount}x${nodeCount} MNA`}
+              {simMode === "digital"
+                ? `${gateCount + switchCount} digital parts`
+                : `${nodeCount}x${nodeCount} MNA`}
             </span>
           </div>
           <div className="flex justify-between pt-0.5">
