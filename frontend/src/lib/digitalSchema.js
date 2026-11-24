@@ -1,5 +1,5 @@
 // Digital Logic & Circuit Components Schema
-// Supports Multi-Port Components for Dual-Mode (Analog & Digital) Workspace
+// Supports Multi-Port Components, 90° Rotation, Custom Labels, and Wire Junctions
 
 export const ANALOG_COMPONENTS = [
   { type: "battery", label: "Battery" },
@@ -175,13 +175,23 @@ export const COMPONENT_DEFINITIONS = {
       { id: "in2", label: "B", type: "input", offsetX: 0, offsetY: 35 },
       { id: "out", label: "Y", type: "output", offsetX: 80, offsetY: 25 }
     ]
+  },
+
+  JUNCTION: {
+    label: "Junction",
+    mode: "digital",
+    width: 12,
+    height: 12,
+    ports: [
+      { id: "p0", label: "J", type: "bidirectional", offsetX: 6, offsetY: 6 }
+    ]
   }
 };
 
 export function getDefaultPorts(type) {
   const def = COMPONENT_DEFINITIONS[type];
   if (def && def.ports) {
-    return def.ports.map(p => ({ ...p }));
+    return def.ports.map((p) => ({ ...p }));
   }
   return [
     { id: "left", label: "A", type: "inout", offsetX: 0, offsetY: 20 },
@@ -189,12 +199,19 @@ export function getDefaultPorts(type) {
   ];
 }
 
-export function getComponentDimensions(type) {
+export function getComponentDimensions(compOrType, explicitRotation = 0) {
+  const isObj = typeof compOrType === "object" && compOrType !== null;
+  const type = isObj ? compOrType.type : compOrType;
+  const rotation = (((isObj ? compOrType.rotation : explicitRotation) || 0) % 360 + 360) % 360;
+
   const def = COMPONENT_DEFINITIONS[type];
-  return {
-    width: def?.width || 80,
-    height: def?.height || 40
-  };
+  const baseW = def?.width || 80;
+  const baseH = def?.height || 40;
+
+  if (rotation === 90 || rotation === 270) {
+    return { width: baseH, height: baseW };
+  }
+  return { width: baseW, height: baseH };
 }
 
 export function createComponent(type, x, y) {
@@ -204,6 +221,8 @@ export function createComponent(type, x, y) {
   return {
     id: Date.now() + Math.floor(Math.random() * 1000),
     type,
+    label: "",
+    rotation: 0,
     x: Math.round(x),
     y: Math.round(y),
     ports: getDefaultPorts(type),
@@ -220,14 +239,55 @@ export function isDigitalType(type) {
 
 export function getPortPosition(comp, portId) {
   if (!comp) return { x: 0, y: 0 };
+  const def = COMPONENT_DEFINITIONS[comp.type];
+  const baseW = def?.width || 80;
+  const baseH = def?.height || 40;
+
   const ports = comp.ports && comp.ports.length > 0 ? comp.ports : getDefaultPorts(comp.type);
-  const port = ports.find(p => p.id === portId) || ports[0];
-  if (port) {
-    return {
-      x: comp.x + port.offsetX,
-      y: comp.y + port.offsetY
-    };
+  const port = ports.find((p) => p.id === portId) || ports[0];
+
+  const ox = port ? port.offsetX : portId === "right" ? baseW : 0;
+  const oy = port ? port.offsetY : baseH / 2;
+
+  const rotation = (((comp.rotation || 0) % 360) + 360) % 360;
+  const cx = baseW / 2;
+  const cy = baseH / 2;
+  const dx = ox - cx;
+  const dy = oy - cy;
+
+  if (rotation === 90) {
+    return { x: comp.x + baseH / 2 - dy, y: comp.y + baseW / 2 + dx };
   }
-  if (portId === "right") return { x: comp.x + 80, y: comp.y + 20 };
-  return { x: comp.x, y: comp.y + 20 };
+  if (rotation === 180) {
+    return { x: comp.x + cx - dx, y: comp.y + cy - dy };
+  }
+  if (rotation === 270) {
+    return { x: comp.x + baseH / 2 + dy, y: comp.y + baseW / 2 - dx };
+  }
+  return { x: comp.x + ox, y: comp.y + oy };
+}
+
+export function getPortDirection(comp, portId) {
+  if (!comp || comp.type === "JUNCTION") return "right";
+
+  const def = COMPONENT_DEFINITIONS[comp.type];
+  const baseW = def?.width || 80;
+  const baseH = def?.height || 40;
+
+  const ports = comp.ports && comp.ports.length > 0 ? comp.ports : getDefaultPorts(comp.type);
+  const port = ports.find((p) => p.id === portId) || ports[0];
+
+  let baseDir = "right";
+  if (port) {
+    if (port.offsetX === 0) baseDir = "left";
+    else if (port.offsetX === baseW) baseDir = "right";
+    else if (port.offsetY === 0) baseDir = "top";
+    else if (port.offsetY === baseH) baseDir = "bottom";
+  } else if (portId === "left" || portId === "in" || portId === "in1" || portId === "in2") {
+    baseDir = "left";
+  }
+
+  const dirs = ["right", "bottom", "left", "top"];
+  const steps = Math.round((((comp.rotation || 0) % 360) + 360) % 360 / 90);
+  return dirs[(dirs.indexOf(baseDir) + steps) % 4];
 }

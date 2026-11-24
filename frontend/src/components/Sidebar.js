@@ -147,7 +147,7 @@ export default function Sidebar({ onAddComponent, simMode = "digital", setSimMod
     >
       {/* Title Header */}
       <div
-        className={`p-3 border-b-2 z-10 shrink-0 flex items-center justify-between transition-colors duration-200 ${
+        className={`hidden md:flex p-3 border-b-2 z-10 shrink-0 items-center justify-between transition-colors duration-200 ${
           isDark
             ? "border-[#334155] bg-[#1e293b] shadow-[0_4px_0px_#000000]"
             : "border-[#334155] bg-[#a8d5ba] shadow-[0_4px_0px_rgba(51,65,85,0.1)]"
@@ -166,7 +166,6 @@ export default function Sidebar({ onAddComponent, simMode = "digital", setSimMod
           {simMode === "digital" ? "DLCD" : "Analog"}
         </span>
       </div>
-
       {/* Mode Switcher Tabs */}
       <div
         className={`flex border-b-2 shrink-0 ${
@@ -206,21 +205,21 @@ export default function Sidebar({ onAddComponent, simMode = "digital", setSimMod
       </div>
       
       {/* Component Palette List */}
-      <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2.5">
+      <div className="flex-1 overflow-y-auto p-2.5 md:p-3.5 grid grid-cols-2 md:flex md:flex-col gap-2 md:gap-2.5 content-start">
         {activeComponents.map((c) => (
           <div
             key={c.type}
             draggable
             onDragStart={(e) => dragStart(e, c.type)}
             onClick={() => onAddComponent && onAddComponent(c.type)}
-            className={`flex items-center gap-3 p-2.5 border-2 cursor-pointer active:scale-95 transition-all select-none ${
+            className={`flex items-center gap-2 md:gap-3 p-2 md:p-2.5 border-2 cursor-pointer active:scale-95 transition-all select-none ${
               isDark
-                ? "bg-[#1e293b] border-[#475569] shadow-[4px_4px_0px_#000000] hover:bg-[#273549] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000000] text-slate-100"
-                : "bg-[#F9F8F4] border-[#334155] shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] text-slate-800"
+                ? "bg-[#1e293b] border-[#475569] shadow-[3px_3px_0px_#000000] md:shadow-[4px_4px_0px_#000000] hover:bg-[#273549] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000000] text-slate-100"
+                : "bg-[#F9F8F4] border-[#334155] shadow-[3px_3px_0px_#334155] md:shadow-[4px_4px_0px_#334155] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#334155] text-slate-800"
             }`}
           >
             <div
-              className={`w-9 h-9 flex items-center justify-center border-2 shrink-0 pointer-events-none transition-colors ${
+              className={`w-8 h-8 md:w-9 md:h-9 flex items-center justify-center border-2 shrink-0 pointer-events-none transition-colors ${
                 isDark
                   ? "bg-[#0f172a] border-[#475569] text-emerald-400"
                   : "bg-[#fce6b6] border-[#334155] text-[#334155]"
@@ -228,13 +227,12 @@ export default function Sidebar({ onAddComponent, simMode = "digital", setSimMod
             >
               {c.icon}
             </div>
-            <span className="font-bold text-xs uppercase tracking-wide truncate pointer-events-none">
+            <span className="font-bold text-[11px] md:text-xs uppercase tracking-wide truncate pointer-events-none">
               {c.label}
             </span>
           </div>
         ))}
       </div>
-
       <div
         className={`p-3 border-t-2 text-[11px] font-bold text-center uppercase tracking-widest shrink-0 hidden md:block ${
           isDark
