@@ -97,7 +97,8 @@ export default function SimulatorWorkspace() {
         console.error("Initial digital simulation error", e);
       }
     };
-    if (window.wasmReady) {
+    if (window.wasmReady || window.Module?.calledRun) {
+      window.wasmReady = true;
       runInitialSim();
       return;
     }
@@ -110,9 +111,9 @@ export default function SimulatorWorkspace() {
     }
 
     window.__wasmScriptInjected = true;
-    window["Module"] = window["Module"] || {};
-    window["Module"].onRuntimeInitialized = () => {
-      console.log("C++ WebAssembly Brain Fully Online!");
+    window.Module = window.Module || {};
+    window.Module.locateFile = (path) => `/CircuitSetu/${path}`;
+    window.Module.onRuntimeInitialized = () => {
       window.wasmReady = true;
       runInitialSim();
     };
